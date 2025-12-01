@@ -1,0 +1,20 @@
+[package]
+name = "gmt-fem-transfer-functions"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.100"
+clap = { version = "4.5.53", features = ["derive"] }
+gmt-fem = "5.2.1"
+gmt_dos-clients_fem = "5.2.0"
+indicatif = { version = "0.18.3", features = ["rayon"] }
+nalgebra = { version = "0.33.2", features = ["rayon", "serde", "serde-serialize"] }
+num-complex = "0.4.6"
+rayon = "1.11.0"
+serde = { version = "1.0.228", features = ["derive"] }
+serde-pickle = "1.2.0"
+thiserror = "2.0.17"
+
+[build-dependencies]
+gmt-fem-code-builder = "2.3.8"
