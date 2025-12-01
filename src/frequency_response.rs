@@ -211,7 +211,7 @@ impl FrequencyResponse for PICompensator {
 
 #[cfg(test)]
 mod tests {
-    use std::fs::File;
+    // use std::fs::File;
 
     use super::*;
 
@@ -219,29 +219,29 @@ mod tests {
     fn folp_tf() {
         let folp = FirstOrderLowPass::new();
 
-        let (nu, tf) = folp.frequency_response(Frequencies::logspace(1., 8e3, 1000));
+        let  tf = folp.frequency_response(Frequencies::logspace(1., 8e3, 1000));
 
-        let mut file = File::create("folp_tf.pkl").unwrap();
-        serde_pickle::to_writer(&mut file, &(nu, tf), Default::default()).unwrap();
+        // let mut file = File::create("folp_tf.pkl").unwrap();
+        // serde_pickle::to_writer(&mut file, &(nu, tf), Default::default()).unwrap();
     }
 
     #[test]
     fn bessel_tf() {
         let bessel = BesselFilter::new();
 
-        let (nu, tf) = bessel.frequency_response(Frequencies::logspace(1., 8e3, 1000));
+        let  tf = bessel.frequency_response(Frequencies::logspace(1., 8e3, 1000));
 
-        let mut file = File::create("bessel_tf.pkl").unwrap();
-        serde_pickle::to_writer(&mut file, &(nu, tf), Default::default()).unwrap();
+        // let mut file = File::create("bessel_tf.pkl").unwrap();
+        // serde_pickle::to_writer(&mut file, &(nu, tf), Default::default()).unwrap();
     }
 
     #[test]
     fn pic_tf() {
         let pic = PICompensator::new();
 
-        let (nu, tf) = pic.frequency_response(Frequencies::logspace(1., 8e3, 1000));
+        let  tf = pic.frequency_response(Frequencies::logspace(1., 8e3, 1000));
 
-        let mut file = File::create("pic_tf.pkl").unwrap();
-        serde_pickle::to_writer(&mut file, &(nu, tf), Default::default()).unwrap();
+        // let mut file = File::create("pic_tf.pkl").unwrap();
+        // serde_pickle::to_writer(&mut file, &(nu, tf), Default::default()).unwrap();
     }
 }

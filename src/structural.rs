@@ -1,10 +1,4 @@
-use std::{
-    env,
-    f64::consts,
-    fs::File,
-    io::{BufReader, BufWriter},
-    path::Path,
-};
+use std::f64::consts;
 
 use gmt_dos_clients_fem::{Model, Switch};
 use gmt_fem::FEM;
@@ -177,7 +171,11 @@ impl Structural {
         StructuralBuilder::new(inputs, outputs)
     }
     /// Returns a [view](https://docs.rs/nalgebra/latest/nalgebra/base/struct.Matrix.html#method.view) of the static gain
-    pub fn static_gain(&self, ij: (usize, usize), nm: (usize, usize)) -> Option<DMatrixView<f64>> {
+    pub fn static_gain(
+        &self,
+        ij: (usize, usize),
+        nm: (usize, usize),
+    ) -> Option<DMatrixView<'_, f64>> {
         self.g_ssol.as_ref().map(|g| g.view(ij, nm))
     }
     /// Returns the eigen frequencies in Hz
@@ -221,7 +219,7 @@ impl FrequencyResponse for Structural {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Frequencies, Sys};
+    use crate::frequency_response::Frequencies;
 
     use super::*;
 
@@ -234,7 +232,7 @@ mod tests {
         .build()
         .unwrap();
 
-        let (_, tf) = structural.frequency_response(1f64);
+        let tf = structural.frequency_response(1f64);
         println!("{}", tf[0]);
     }
 
@@ -247,12 +245,11 @@ mod tests {
         .build()
         .unwrap();
 
-        let (nu, tf) = structural.frequency_response(Frequencies::logspace(0.1, 100., 1000));
-        println!("{:?}", nu);
+        let tf = structural.frequency_response(Frequencies::logspace(0.1, 100., 1000));
         println!("{}", tf[0]);
 
-        let mut file = File::create("mount_el_tf.pkl").unwrap();
-        serde_pickle::to_writer(&mut file, &(nu, tf), Default::default()).unwrap();
+        // let mut file = File::create("mount_el_tf.pkl").unwrap();
+        // serde_pickle::to_writer(&mut file, &(nu, tf), Default::default()).unwrap();
     }
 
     #[test]
@@ -265,12 +262,12 @@ mod tests {
         .build()
         .unwrap();
 
-        let (nu, tf) = structural.frequency_response(Frequencies::logspace(0.1, 4e3, 1000));
+        let tf = structural.frequency_response(Frequencies::logspace(0.1, 4e3, 1000));
         //println!("{:?}", nu);
         println!("{}", tf[0]);
 
-        let mut file = File::create("mount_el_tf_dc_full-sampling_delay.pkl").unwrap();
-        serde_pickle::to_writer(&mut file, &(nu, tf), Default::default()).unwrap();
+        // let mut file = File::create("mount_el_tf_dc_full-sampling_delay.pkl").unwrap();
+        // serde_pickle::to_writer(&mut file, &(nu, tf), Default::default()).unwrap();
     }
 
     #[test]
@@ -282,15 +279,15 @@ mod tests {
         .build()
         .unwrap();
 
-        let (nu, tf) = structural.frequency_response(Frequencies::LinSpace {
+        let tf = structural.frequency_response(Frequencies::LinSpace {
             lower: 1f64,
             upper: 10f64,
             n: 2,
         });
-        println!("{:?}", nu);
+        // println!("{:?}", nu);
         println!("{}", tf[0]);
 
-        let sys = Sys::from((nu, tf));
-        dbg!(sys);
+        // let sys = Sys::from((nu, tf));
+        // dbg!(sys);
     }
 }

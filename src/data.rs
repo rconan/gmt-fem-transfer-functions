@@ -1,6 +1,6 @@
 use nalgebra::{Complex, ComplexField, DMatrix};
 use serde::Serialize;
-use std::{fs::File, io, path::Path};
+use std::{fmt::Display, fs::File, io, path::Path};
 
 #[derive(Debug, thiserror::Error)]
 pub enum TransferFunctionDataError {
@@ -59,6 +59,15 @@ impl<T: Cartesian2Polar> FrequencyResponseData<T> {
             magnitude: response.magnitude(),
             phase: response.phase(),
         }
+    }
+}
+impl<T> Display for FrequencyResponseData<T>
+where
+    T: Cartesian2Polar,
+    <T as Cartesian2Polar>::Output: Display,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{},{},{}", self.frequency, self.magnitude, self.phase)
     }
 }
 
