@@ -17,12 +17,29 @@ pub type if64 = Complex<f64>;
 pub enum Frequencies {
     /// a single frequency
     Single { value: f64 },
-    /// logarithmic sampling of the interval `[lower,upper]` with `n` samples
-    LogSpace { lower: f64, upper: f64, n: usize },
+    /// logarithmic (log base 10) sampling of the interval `[lower,upper]` with `n` samples
+    LogSpace {
+        #[arg(short, long)]
+        lower: f64,
+        #[arg(short, long)]
+        upper: f64,
+        #[arg(short)]
+        n: usize,
+    },
     /// regular sampling of the interval `[lower,upper]` with `n` samples
-    LinSpace { lower: f64, upper: f64, n: usize },
+    LinSpace {
+        #[arg(short, long)]
+        lower: f64,
+        #[arg(short, long)]
+        upper: f64,
+        #[arg(short)]
+        n: usize,
+    },
     /// a given set of frequencies
-    Set { values: Vec<f64> },
+    Set {
+        #[arg(short, long)]
+        values: Vec<f64>,
+    },
 }
 impl From<f64> for Frequencies {
     fn from(value: f64) -> Self {
@@ -219,7 +236,7 @@ mod tests {
     fn folp_tf() {
         let folp = FirstOrderLowPass::new();
 
-        let  tf = folp.frequency_response(Frequencies::logspace(1., 8e3, 1000));
+        let tf = folp.frequency_response(Frequencies::logspace(1., 8e3, 1000));
 
         // let mut file = File::create("folp_tf.pkl").unwrap();
         // serde_pickle::to_writer(&mut file, &(nu, tf), Default::default()).unwrap();
@@ -229,7 +246,7 @@ mod tests {
     fn bessel_tf() {
         let bessel = BesselFilter::new();
 
-        let  tf = bessel.frequency_response(Frequencies::logspace(1., 8e3, 1000));
+        let tf = bessel.frequency_response(Frequencies::logspace(1., 8e3, 1000));
 
         // let mut file = File::create("bessel_tf.pkl").unwrap();
         // serde_pickle::to_writer(&mut file, &(nu, tf), Default::default()).unwrap();
@@ -239,7 +256,7 @@ mod tests {
     fn pic_tf() {
         let pic = PICompensator::new();
 
-        let  tf = pic.frequency_response(Frequencies::logspace(1., 8e3, 1000));
+        let tf = pic.frequency_response(Frequencies::logspace(1., 8e3, 1000));
 
         // let mut file = File::create("pic_tf.pkl").unwrap();
         // serde_pickle::to_writer(&mut file, &(nu, tf), Default::default()).unwrap();
