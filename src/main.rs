@@ -8,18 +8,11 @@ use gmt_fem_frequency_response::{
 fn main() -> anyhow::Result<()> {
     let args: Cli = Cli::parse();
 
-    let model = Structural::builder(args.fem_inputs(), args.fem_outputs())
-        .damping(args.structural_damping)
-        .min_eigen_frequency(args.eigen_frequency_min)
-        .max_eigen_frequency(args.eigen_frequency_max)
-        .build()?;
+    let model = Structural::try_from(&args)?;
     println!("{model}");
 
-    dbg!(args.lom_outputs());
-
-    let nu = args.frequencies.clone();
     let now = Instant::now();
-    let frequency_response = model.frequency_response(nu);
+    let frequency_response = model.frequency_response(&args.frequencies);
     println!(
         "frequency response computed in {:.3}s",
         now.elapsed().as_secs_f64()

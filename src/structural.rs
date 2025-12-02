@@ -22,6 +22,8 @@ pub enum StructuralError {
     IO(#[from] std::io::Error),
     #[error("inputs and outputs do not match model in {0}")]
     IOMismatch(String),
+    #[error("failed to load linear optical model sensitivity matrices")]
+    LOM(#[from] gmt_lom::LinearOpticalModelError),
 }
 type Result<T> = std::result::Result<T, StructuralError>;
 
@@ -40,41 +42,44 @@ impl Default for StaticGainCompensation {
 }
 
 /// FEM structural dynamic model
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize)]
 pub struct Structural {
     // inputs labels
-    inputs: Vec<String>,
+    pub(crate) inputs: Vec<String>,
     // outputs labels
-    outputs: Vec<String>,
+    pub(crate) outputs: Vec<String>,
     // modal forces matrix
-    b: DMatrix<if64>,
+    pub(crate) b: DMatrix<if64>,
     // modal displacements matrix
-    c: DMatrix<if64>,
+    pub(crate) c: DMatrix<if64>,
     // static solution gain matrix
-    g_ssol: Option<DMatrix<f64>>,
+    pub(crate) g_ssol: Option<DMatrix<f64>>,
     // static gain mismatch compensation scheme
-    static_gain_mismatch: Option<StaticGainCompensation>,
+    pub(crate) static_gain_mismatch: Option<StaticGainCompensation>,
     // eigen frequencies
-    w: Vec<f64>,
+    pub(crate) w: Vec<f64>,
     // damping coefficient
-    z: f64,
+    pub(crate) z: f64,
+    // optical sensitivity matrix
+    pub(crate) optical_senses: Option<DMatrix<f64>>,
 }
 
 /// FEM structural dynamic model builder
 #[derive(Debug, Default)]
 pub struct StructuralBuilder {
-    inputs: Vec<String>,
-    outputs: Vec<String>,
-    z: f64,
-    min_eigen_frequency: Option<f64>,
-    max_eigen_frequency: Option<f64>,
-    file_name: String,
+    // inputs: Vec<String>,
+    // outputs: Vec<String>,
+    // z: f64,
+    pub(crate) built: Structural,
+    pub(crate) min_eigen_frequency: Option<f64>,
+    pub(crate) max_eigen_frequency: Option<f64>,
+    pub(crate) file_name: String,
     // static_gain_mismatch: Option<StaticGainCompensation>,
 }
 impl StructuralBuilder {
     /// Sets the FEM modal damping coefficient
     pub fn damping(mut self, z: f64) -> Self {
-        self.z = z;
+        self.built.z = z;
         self
     }
     /// Truncates the eigen frequencies to and including `max_eigen_frequency`
@@ -96,6 +101,10 @@ impl StructuralBuilder {
         self.file_name = file_name.into();
         self
     }
+    pub fn optical_sensitivities(mut self, mat: Option<DMatrix<f64>>) -> Self {
+        self.built.optical_senses = mat;
+        self
+    }
     /* /// Enables the compensation of the static gain mismatch
     ///
     /// An optional delay `s``:w` may be added
@@ -108,13 +117,15 @@ impl StructuralBuilder {
         }
         self
     } */
-}
-impl StructuralBuilder {
     fn new(inputs: Vec<String>, outputs: Vec<String>) -> Self {
-        Self {
+        let built = Structural {
             inputs,
             outputs,
             z: 2. / 100.,
+            ..Default::default()
+        };
+        Self {
+            built,
             file_name: "structural".into(),
             ..Default::default()
         }
@@ -138,12 +149,11 @@ impl StructuralBuilder {
         println!("building structural from FEM");
         let mut fem = FEM::from_env()?;
         println!("{fem}");
-        let eigen_freq = fem.eigen_frequencies.clone();
 
         fem.switch_inputs(Switch::Off, None)
-            .switch_inputs_by_name(self.inputs.clone(), Switch::On)?
+            .switch_inputs_by_name(self.built.inputs.clone(), Switch::On)?
             .switch_outputs(Switch::Off, None)
-            .switch_outputs_by_name(self.outputs.clone(), Switch::On)?;
+            .switch_outputs_by_name(self.built.outputs.clone(), Switch::On)?;
         let b = DMatrix::<f64>::from_row_slice(fem.n_modes(), fem.n_inputs(), &fem.inputs2modes())
             .map(|x| Complex::new(x, 0f64));
         let c =
@@ -160,14 +170,14 @@ impl StructuralBuilder {
 
         let q = match (self.min_eigen_frequency, self.max_eigen_frequency) {
             (Some(min), Some(max)) => Some((
-                eigen_freq
+                fem.eigen_frequencies
                     .iter()
                     .copied()
                     .enumerate()
                     .find(|(_, f)| *f >= min)
                     .unwrap_or_default()
                     .0,
-                eigen_freq
+                fem.eigen_frequencies
                     .iter()
                     .copied()
                     .filter_map(|f| (f >= min && f <= max).then(|| f))
@@ -179,7 +189,7 @@ impl StructuralBuilder {
             )),
             (None, Some(max)) => Some((
                 0,
-                eigen_freq
+                fem.eigen_frequencies
                     .iter()
                     .copied()
                     .filter_map(|f| (f <= max).then(|| f))
@@ -190,39 +200,34 @@ impl StructuralBuilder {
                     + 1,
             )),
             (Some(min), None) => {
-                let s = eigen_freq
+                let s = fem
+                    .eigen_frequencies
                     .iter()
                     .copied()
                     .enumerate()
                     .find(|(_, f)| *f >= min)
                     .unwrap_or_default()
                     .0;
-                Some((s, eigen_freq.len() - s))
+                Some((s, fem.eigen_frequencies.len() - s))
             }
             (None, None) => None,
         };
 
         Ok(if let Some((s, n)) = q {
             Structural {
-                inputs: self.inputs,
-                outputs: self.outputs,
                 b: b.rows(s, n).into_owned(),
                 c: c.columns(s, n).into_owned(),
                 g_ssol,
-                static_gain_mismatch: None, //self.static_gain_mismatch,
                 w: w[s..s + n].to_vec(),
-                z: self.z,
+                ..self.built
             }
         } else {
             Structural {
-                inputs: self.inputs,
-                outputs: self.outputs,
                 b,
                 c,
                 g_ssol,
-                static_gain_mismatch: None, //self.static_gain_mismatch,
                 w,
-                z: self.z,
+                ..self.built
             }
         })
         // let file = File::create(&path)?;
@@ -293,7 +298,7 @@ impl FrequencyResponse for Structural {
                 cb /= ode;
                 a + cb
             });
-        match &self.static_gain_mismatch {
+        let fr = match &self.static_gain_mismatch {
             Some(StaticGainCompensation {
                 delay: None,
                 delta_gain,
@@ -303,6 +308,11 @@ impl FrequencyResponse for Structural {
                 delta_gain,
             }) => fr + (delta_gain * (-jw * t_s).exp()),
             None => fr,
+        };
+        if let Some(mat) = self.optical_senses.as_ref() {
+            mat.map(|x| Complex::from(x)) * fr
+        } else {
+            fr
         }
     }
 }

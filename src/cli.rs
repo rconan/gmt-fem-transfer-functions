@@ -1,7 +1,15 @@
 //! Command line interface
 
-use crate::{Inputs, Outputs, frequency_response::Frequencies};
+use crate::{
+    Inputs, Outputs,
+    frequency_response::Frequencies,
+    structural::{Structural, StructuralBuilder, StructuralError},
+};
 use clap::Parser;
+use gmt_lom::{
+    LinearOpticalModelError, Loader, LoaderTrait, OpticalSensitivities, OpticalSensitivity,
+};
+use nalgebra::{DMatrix, RowDVector};
 
 /// Command line interface
 #[derive(Parser)]
@@ -46,14 +54,11 @@ impl Cli {
             .collect();
         #[cfg(fem)]
         for output in &self.outputs {
-            match output {
-                Outputs::TipTilt | Outputs::SegmentTipTilt | Outputs::SegmentPiston => {
-                    let var = Outputs::OSSM1Lcl;
-                    outs.push(var.name());
-                    let var = Outputs::MCM2Lcl6D;
-                    outs.push(var.name());
-                }
-                _ => {}
+            if let Outputs::TipTilt | Outputs::SegmentTipTilt | Outputs::SegmentPiston = output {
+                let var = Outputs::OSSM1Lcl;
+                outs.push(var.name());
+                let var = Outputs::MCM2Lcl6D;
+                outs.push(var.name());
             }
         }
         outs.dedup();
@@ -68,5 +73,61 @@ impl Cli {
                 name == "tip-tilt" || name == "segment_tip-tilt" || name == "segment_piston"
             })
             .collect()
+    }
+    pub fn lom_sensitivies(&self) -> Result<Option<DMatrix<f64>>, LinearOpticalModelError> {
+        let sensitivities = Loader::<OpticalSensitivities>::default().load()?;
+        let rows: Vec<_> = self
+            .outputs
+            .iter()
+            .filter_map(|output| match output {
+                Outputs::TipTilt => {
+                    Some(sensitivities[OpticalSensitivity::TipTilt(vec![])].clone())
+                }
+                Outputs::SegmentTipTilt => {
+                    Some(sensitivities[OpticalSensitivity::SegmentTipTilt(vec![])].clone())
+                }
+                Outputs::SegmentPiston => {
+                    Some(sensitivities[OpticalSensitivity::SegmentPiston(vec![])].clone())
+                }
+                _ => None,
+            })
+            .flat_map(|sens| match sens {
+                // gmt_lom::OpticalSensitivity::Wavefront(items) => items.,
+                OpticalSensitivity::TipTilt(items) => items
+                    .chunks(84)
+                    .map(|x| RowDVector::from_row_slice(x))
+                    .collect::<Vec<_>>(),
+                OpticalSensitivity::SegmentTipTilt(items) => items
+                    .chunks(84)
+                    .map(|x| RowDVector::from_row_slice(x))
+                    .collect::<Vec<_>>(),
+                OpticalSensitivity::SegmentPiston(items) => items
+                    .chunks(84)
+                    .map(|x| RowDVector::from_row_slice(x))
+                    .collect::<Vec<_>>(),
+                _ => vec![],
+            })
+            .collect();
+        Ok((!rows.is_empty()).then(|| DMatrix::<f64>::from_rows(rows.as_slice())))
+    }
+}
+
+impl TryFrom<&Cli> for Structural {
+    type Error = StructuralError;
+
+    fn try_from(args: &Cli) -> Result<Self, Self::Error> {
+        Ok(StructuralBuilder {
+            built: Structural {
+                inputs: args.fem_inputs(),
+                outputs: args.fem_outputs(),
+                z: args.structural_damping,
+                optical_senses: args.lom_sensitivies()?,
+                ..Default::default()
+            },
+            min_eigen_frequency: args.eigen_frequency_min,
+            max_eigen_frequency: args.eigen_frequency_max,
+            ..Default::default()
+        }
+        .build()?)
     }
 }
