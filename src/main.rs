@@ -20,6 +20,9 @@ pub struct Cli {
     /// Frequencies [Hz]
     #[command(subcommand)]
     frequencies: Frequencies,
+    /// data file, either a Matlab (.mat) or Python pickle (.pkl) file
+    #[arg(short, long, default_value_t = String::from("gmt_frequency_response.pkl"))]
+    filename: String,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -37,7 +40,7 @@ fn main() -> anyhow::Result<()> {
     let frequency_response = model.frequency_response(nu);
 
     let data = TransferFunctionData { frequency_response };
-    data.dump("test.pkl")?;
+    data.dump(args.filename)?;
 
     Ok(())
 }
