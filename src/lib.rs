@@ -1,5 +1,6 @@
 use clap::ValueEnum;
 
+pub mod cli;
 pub mod data;
 pub mod frequency_response;
 pub mod structural;

@@ -1,6 +1,8 @@
 use nalgebra::{Complex, ComplexField, DMatrix};
 use serde::Serialize;
-use std::{fmt::Display, fs::File, io, path::Path};
+use std::{env, fmt::Display, fs::File, io, path::Path};
+
+use crate::cli::Cli;
 
 #[derive(Debug, thiserror::Error)]
 pub enum TransferFunctionDataError {
@@ -71,17 +73,40 @@ where
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Default, Serialize)]
 pub struct TransferFunctionData {
-    pub frequency_response: Vec<FrequencyResponseData<DMatrix<Complex<f64>>>>,
+    fem: String,
+    inputs: Vec<String>,
+    outputs: Vec<String>,
+    modal_damping_coefficient: f64,
+    frequency_response: Vec<FrequencyResponseData<DMatrix<Complex<f64>>>>,
+}
+
+impl From<&Cli> for TransferFunctionData {
+    fn from(args: &Cli) -> Self {
+        let fem = {
+            let fem_repo = env::var("FEM_REPO").unwrap();
+            let fem_path = Path::new(&fem_repo);
+            fem_path.file_name().unwrap().to_string_lossy().into_owned()
+        };
+        let inputs: Vec<_> = args.inputs.iter().map(|x| x.name()).collect();
+        let outputs: Vec<_> = args.outputs.iter().map(|x| x.name()).collect();
+        Self {
+            fem,
+            inputs,
+            outputs,
+            modal_damping_coefficient: args.structural_damping,
+            ..Default::default()
+        }
+    }
 }
 
 impl TransferFunctionData {
-    pub fn dump(&self, path: impl AsRef<Path>) -> Result<()> {
+    pub fn dump(self, path: impl AsRef<Path>) -> Result<()> {
         match path.as_ref().extension() {
             Some(ext) if ext == "pkl" => {
                 let mut file = File::create(path)?;
-                serde_pickle::to_writer(&mut file, self, Default::default())?;
+                serde_pickle::to_writer(&mut file, &self, Default::default())?;
                 Ok(())
             }
             Some(ext) if ext == "mat" => todo!(),
@@ -89,6 +114,16 @@ impl TransferFunctionData {
                 ext.to_string_lossy().into_owned(),
             )),
             None => Err(TransferFunctionDataError::MissingFileExtension),
+        }
+    }
+
+    pub fn add_response(
+        self,
+        frequency_response: Vec<FrequencyResponseData<DMatrix<Complex<f64>>>>,
+    ) -> Self {
+        Self {
+            frequency_response,
+            ..self
         }
     }
 }

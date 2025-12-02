@@ -13,7 +13,7 @@ pub type if64 = Complex<f64>;
 /// Frequency sampling options
 ///
 /// The frequencies units is Hz
-#[derive(Clone, clap::Subcommand)]
+#[derive(Debug, Clone, clap::Subcommand)]
 pub enum Frequencies {
     /// a single frequency
     Single { value: f64 },

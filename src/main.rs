@@ -1,29 +1,8 @@
 use clap::Parser;
 use gmt_fem_frequency_response::{
-    BuilderTrait, Inputs, Outputs,
-    data::TransferFunctionData,
-    frequency_response::{Frequencies, FrequencyResponse},
+    BuilderTrait, cli::Cli, data::TransferFunctionData, frequency_response::FrequencyResponse,
     structural::Structural,
 };
-
-#[derive(Parser)]
-pub struct Cli {
-    /// FEM inputs
-    #[arg(short, long)]
-    inputs: Vec<Inputs>,
-    /// FEM outputs
-    #[arg(short, long)]
-    outputs: Vec<Outputs>,
-    /// FEM modal damping coeffcient
-    #[arg(short = 'z', long, default_value_t = 0.02f64)]
-    structural_damping: f64,
-    /// Frequencies [Hz]
-    #[command(subcommand)]
-    frequencies: Frequencies,
-    /// data file, either a Matlab (.mat) or Python pickle (.pkl) file
-    #[arg(short, long, default_value_t = String::from("gmt_frequency_response.pkl"))]
-    filename: String,
-}
 
 fn main() -> anyhow::Result<()> {
     let args: Cli = Cli::parse();
@@ -35,12 +14,12 @@ fn main() -> anyhow::Result<()> {
     .damping(args.structural_damping)
     .build()?;
 
-    // let nu = Frequencies::logspace(1f64, 250f64, 1000);
-    let nu = Frequencies::from(1f64);
+    let nu = args.frequencies.clone();
     let frequency_response = model.frequency_response(nu);
 
-    let data = TransferFunctionData { frequency_response };
-    data.dump(args.filename)?;
+    TransferFunctionData::from(&args)
+        .add_response(frequency_response)
+        .dump(args.filename)?;
 
     Ok(())
 }
