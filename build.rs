@@ -32,20 +32,26 @@ impl Inputs {{
 }}
 #[derive(Clone, ValueEnum)]
 pub enum Outputs {{
-    {}
+    {},
+    TipTilt,
+    SegmentTipTilt,
+    SegmentPiston,
 }}
 impl Outputs {{
     pub fn name(&self) -> String {{
         match self {{
-            {}
+            {},
+            Self::TipTilt => "tip-tilt",
+            Self::SegmentTipTilt => "segment_tip-tilt",
+            Self::SegmentPiston => "segment_piston",
         }}.to_string()
     }}
 }}
                 "#,
                     inputs_variants.join(",\n    "),
-                    inputs_variant_to_name.join(",\n    "),
+                    inputs_variant_to_name.join(",\n            "),
                     outputs_variants.join(",\n    "),
-                    outputs_variant_to_name.join(",\n    "),
+                    outputs_variant_to_name.join(",\n            "),
                 ),
             ) {
                 Ok(_) => {

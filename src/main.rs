@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use clap::Parser;
 use gmt_fem_frequency_response::{
     BuilderTrait, cli::Cli, data::TransferFunctionData, frequency_response::FrequencyResponse,
@@ -15,7 +17,12 @@ fn main() -> anyhow::Result<()> {
     .build()?;
 
     let nu = args.frequencies.clone();
+    let now = Instant::now();
     let frequency_response = model.frequency_response(nu);
+    println!(
+        "frequency response computed in {:.3}s",
+        now.elapsed().as_secs_f64()
+    );
 
     TransferFunctionData::from(&args)
         .add_response(frequency_response)
