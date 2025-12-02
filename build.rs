@@ -19,6 +19,7 @@ fn main() {
                 &path,
                 format!(
                     r#"
+#[doc = "FEM inputs"]
 #[derive(Clone, ValueEnum)]
 pub enum Inputs {{
     {}
@@ -30,6 +31,7 @@ impl Inputs {{
         }}.to_string()
     }}
 }}
+#[doc = "FEM outputs"]
 #[derive(Clone, ValueEnum)]
 pub enum Outputs {{
     {},

@@ -1,3 +1,5 @@
+//! Frequency response data products
+
 use nalgebra::{Complex, ComplexField, DMatrix};
 use serde::Serialize;
 use std::{env, fmt::Display, fs::File, io, ops::Deref, path::Path};
@@ -18,6 +20,7 @@ pub enum TransferFunctionDataError {
 
 type Result<T> = std::result::Result<T, TransferFunctionDataError>;
 
+/// Matrix and scale size interface
 pub trait Dims {
     type D: std::fmt::Debug + Serialize;
     fn size(&self) -> Self::D;
@@ -39,6 +42,7 @@ impl Dims for f64 {
     }
 }
 
+/// Cartesian to polar transformation interface
 pub trait Cartesian2Polar {
     type Output: Dims + std::fmt::Debug + Serialize;
     fn magnitude(&self) -> Self::Output;
@@ -69,6 +73,9 @@ impl Cartesian2Polar for Complex<f64> {
     }
 }
 
+/// Frequency response data point
+///
+/// Frequency response magnitude and phase matrices at one frequency
 #[derive(Debug, Serialize)]
 pub struct FrequencyResponseData<T: Cartesian2Polar> {
     frequency: f64,
@@ -76,6 +83,7 @@ pub struct FrequencyResponseData<T: Cartesian2Polar> {
     phase: <T as Cartesian2Polar>::Output,
 }
 impl<T: Cartesian2Polar> FrequencyResponseData<T> {
+    /// Creates a [FrequencyResponseData] instance from a frequency and response complex matrix
     pub fn new(frequency: f64, response: T) -> Self {
         Self {
             frequency,
@@ -94,10 +102,12 @@ where
     }
 }
 
+/// Collection of [FrequencyResponseData]
 #[derive(Debug, Default, Serialize)]
 pub struct FrequencyResponseVec<T: Cartesian2Polar>(Vec<FrequencyResponseData<T>>);
 
 impl<T: Cartesian2Polar> FrequencyResponseVec<T> {
+    /// Creates a new [FrequencyResponseVec] instance from a vector of [FrequencyResponseData]
     pub fn new(frequency_response_datas: Vec<FrequencyResponseData<T>>) -> Self {
         Self(frequency_response_datas)
     }
@@ -147,6 +157,7 @@ impl<T: Cartesian2Polar> Display for FrequencyResponseVec<T> {
     }
 }
 
+/// GMT FEM transfer function data export
 #[derive(Debug, Default, Serialize)]
 pub struct TransferFunctionData {
     fem: String,
@@ -176,6 +187,9 @@ impl From<&Cli> for TransferFunctionData {
 }
 
 impl TransferFunctionData {
+    /// Writes the date to either a pickle or matlab file
+    ///
+    /// The file extension, "pkl" or "mat", sets the file type
     pub fn dump(self, path: impl AsRef<Path>) -> Result<()> {
         match path.as_ref().extension() {
             Some(ext) if ext == "pkl" => {
@@ -191,6 +205,7 @@ impl TransferFunctionData {
         }
     }
 
+    /// Adds the [frequency response](FrequencyResponseVec) to the data
     pub fn add_response(
         self,
         frequency_response: FrequencyResponseVec<DMatrix<Complex<f64>>>,

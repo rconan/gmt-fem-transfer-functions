@@ -1,3 +1,5 @@
+//! FEM structural dynamic model
+
 use std::{f64::consts, fmt::Display};
 
 use gmt_dos_clients_fem::{Model, Switch};
@@ -6,10 +8,7 @@ use nalgebra::{DMatrix, DMatrixView};
 use num_complex::Complex;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    BuilderTrait,
-    frequency_response::{FrequencyResponse, if64},
-};
+use crate::frequency_response::{FrequencyResponse, if64};
 
 #[derive(Debug, thiserror::Error)]
 pub enum StructuralError {
@@ -40,6 +39,7 @@ impl Default for StaticGainCompensation {
     }
 }
 
+/// FEM structural dynamic model
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Structural {
     // inputs labels
@@ -59,6 +59,8 @@ pub struct Structural {
     // damping coefficient
     z: f64,
 }
+
+/// FEM structural dynamic model builder
 #[derive(Debug, Default)]
 pub struct StructuralBuilder {
     inputs: Vec<String>,
@@ -67,36 +69,36 @@ pub struct StructuralBuilder {
     min_eigen_frequency: Option<f64>,
     max_eigen_frequency: Option<f64>,
     file_name: String,
-    static_gain_mismatch: Option<StaticGainCompensation>,
+    // static_gain_mismatch: Option<StaticGainCompensation>,
 }
-impl BuilderTrait for StructuralBuilder {
+impl StructuralBuilder {
     /// Sets the FEM modal damping coefficient
-    fn damping(mut self, z: f64) -> Self {
+    pub fn damping(mut self, z: f64) -> Self {
         self.z = z;
         self
     }
     /// Truncates the eigen frequencies to and including `max_eigen_frequency`
     ///
     /// The number of modes is set accordingly
-    fn max_eigen_frequency(mut self, max_eigen_frequency: Option<f64>) -> Self {
+    pub fn max_eigen_frequency(mut self, max_eigen_frequency: Option<f64>) -> Self {
         self.max_eigen_frequency = max_eigen_frequency;
         self
     }
     /// Drops the eigen frequencies less than `min_eigen_frequency`
     ///
     /// The number of modes is set accordingly
-    fn min_eigen_frequency(mut self, min_eigen_frequency: Option<f64>) -> Self {
+    pub fn min_eigen_frequency(mut self, min_eigen_frequency: Option<f64>) -> Self {
         self.min_eigen_frequency = min_eigen_frequency;
         self
     }
     /// Sets the filename where [Structural] is seralize to
-    fn filename<S: Into<String>>(mut self, file_name: S) -> Self {
+    pub fn filename<S: Into<String>>(mut self, file_name: S) -> Self {
         self.file_name = file_name.into();
         self
     }
-    /// Enables the compensation of the static gain mismatch
+    /* /// Enables the compensation of the static gain mismatch
     ///
-    /// An optional delay [s] may be added
+    /// An optional delay `s``:w` may be added
     fn enable_static_gain_mismatch_compensation(mut self, maybe_delay: Option<f64>) -> Self {
         self.static_gain_mismatch = Some(Default::default());
         if let Some(value) = maybe_delay {
@@ -105,7 +107,7 @@ impl BuilderTrait for StructuralBuilder {
                 .and_then(|sgm| sgm.delay.replace(value));
         }
         self
-    }
+    } */
 }
 impl StructuralBuilder {
     fn new(inputs: Vec<String>, outputs: Vec<String>) -> Self {
@@ -256,19 +258,19 @@ impl Structural {
 impl Display for Structural {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "GMT structural dynamic model:")?;
-        writeln!(f, " * inputs: {:?}", self.inputs)?;
-        writeln!(f, " * outputs: {:?}", self.outputs)?;
+        writeln!(f, " + inputs: {:?}", self.inputs)?;
+        writeln!(f, " + outputs: {:?}", self.outputs)?;
         writeln!(
             f,
-            " * eigen frequencies: ({:.3},{:.3})Hz",
-            0.5 * self.w[0] * consts::FRAC_1_PI,
-            0.5 * self.w.last().unwrap() * consts::FRAC_1_PI
+            " + eigen frequencies: ({:.3},{:.3})Hz",
+            0.5 + self.w[0] + consts::FRAC_1_PI,
+            0.5 + self.w.last().unwrap() + consts::FRAC_1_PI
         )?;
-        writeln!(f, " * damping: {:}%", self.z * 1e2)?;
-        writeln!(f, " * B matrix {:?}", self.b.shape())?;
-        writeln!(f, " * C matrix {:?}", self.c.shape())?;
+        writeln!(f, " + damping: {:}%", self.z * 1e2)?;
+        writeln!(f, " + B matrix {:?}", self.b.shape())?;
+        writeln!(f, " + C matrix {:?}", self.c.shape())?;
         if let Some(g) = self.g_ssol.as_ref() {
-            writeln!(f, " * static gain matrix {:?}", g.shape())?;
+            writeln!(f, " + static gain matrix {:?}", g.shape())?;
         }
         Ok(())
     }
@@ -346,7 +348,7 @@ mod tests {
             vec!["OSS_ElDrive_Torque".to_string()],
             vec!["OSS_ElEncoder_Angle".to_string()],
         )
-        .enable_static_gain_mismatch_compensation(Some(1. / 8e3))
+        // .enable_static_gain_mismatch_compensation(Some(1. / 8e3))
         .build()
         .unwrap();
 

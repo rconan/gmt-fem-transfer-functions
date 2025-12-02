@@ -2,8 +2,7 @@ use std::time::Instant;
 
 use clap::Parser;
 use gmt_fem_frequency_response::{
-    BuilderTrait, cli::Cli, data::TransferFunctionData, frequency_response::FrequencyResponse,
-    structural::Structural,
+    Cli, data::TransferFunctionData, frequency_response::FrequencyResponse, structural::Structural,
 };
 
 fn main() -> anyhow::Result<()> {

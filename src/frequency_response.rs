@@ -1,3 +1,5 @@
+//! Frequency response functionalities
+
 use indicatif::ParallelProgressIterator;
 use num_complex::Complex;
 use rayon::prelude::*;
@@ -152,7 +154,7 @@ pub trait FrequencyResponse {
     }
 }
 
-/// FIRST ORDER LOW-PASS
+/// First order low-pass
 ///
 /// *GMT-DOC-XXXX: ASM segment modal tranfer function*, Eq.(1)
 #[derive(Debug)]
@@ -173,7 +175,7 @@ impl FrequencyResponse for FirstOrderLowPass {
     }
 }
 
-/// 4TH-ORDER BESSEL FILTER
+/// 4th-order bessel filter
 ///
 /// *GMT-DOC-XXXX: ASM segment modal tranfer function*, Eq.(2)
 #[derive(Debug)]
@@ -204,7 +206,7 @@ impl FrequencyResponse for BesselFilter {
     }
 }
 
-/// PROPORTIONAL-INTEGRAL COMPENSATOR
+/// Proportional-integral compensator
 ///
 /// *GMT-DOC-XXXX: ASM segment modal tranfer function*, Eq.(3)
 #[derive(Debug)]

@@ -1,6 +1,9 @@
+//! Command line interface
+
 use crate::{Inputs, Outputs, frequency_response::Frequencies};
 use clap::Parser;
 
+/// Command line interface
 #[derive(Parser)]
 pub struct Cli {
     /// FEM inputs
@@ -18,7 +21,7 @@ pub struct Cli {
     /// FEM maximum eigen frequency (higher frequencies are truncated)
     #[arg(long)]
     pub eigen_frequency_max: Option<f64>,
-    /// Frequencies [Hz]
+    /// Frequencies \[Hz\]
     #[command(subcommand)]
     pub frequencies: Frequencies,
     /// data file, either a Matlab (.mat) or Python pickle (.pkl) file
