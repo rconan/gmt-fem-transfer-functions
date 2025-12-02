@@ -1,5 +1,5 @@
 use clap::Parser;
-use gmt_fem_transfer_functions::{
+use gmt_fem_frequency_response::{
     BuilderTrait, Inputs, Outputs,
     data::TransferFunctionData,
     frequency_response::{Frequencies, FrequencyResponse},
