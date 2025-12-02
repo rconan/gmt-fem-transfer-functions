@@ -1,6 +1,7 @@
 use std::{env, fs, path::Path};
 
 fn main() {
+    let _ = gmt_fem_code_builder::rustc_config(env!("CARGO_PKG_NAME"), None);
     match gmt_fem_code_builder::io_names(env!("CARGO_PKG_NAME")) {
         Ok((inputs, outputs)) => {
             let inputs_variants: Vec<_> = inputs.iter().map(|io| io.variant()).collect();

@@ -18,3 +18,8 @@ thiserror = "2.0.17"
 
 [build-dependencies]
 gmt-fem-code-builder = "2.3.8"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = [
+    'cfg(fem)',
+] }

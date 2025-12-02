@@ -15,6 +15,8 @@ fn main() -> anyhow::Result<()> {
         .build()?;
     println!("{model}");
 
+    dbg!(args.lom_outputs());
+
     let nu = args.frequencies.clone();
     let now = Instant::now();
     let frequency_response = model.frequency_response(nu);

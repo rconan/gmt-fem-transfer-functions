@@ -30,15 +30,42 @@ pub struct Cli {
 }
 
 impl Cli {
+    /// Returns the names of the FEM inputs
     pub fn fem_inputs(&self) -> Vec<String> {
         self.inputs.iter().map(|io| io.name()).collect()
     }
+    /// Returns the names of the FEM outputs
     pub fn fem_outputs(&self) -> Vec<String> {
-        self.outputs
+        let mut outs: Vec<_> = self
+            .outputs
             .iter()
             .map(|io| io.name())
             .filter(|name| {
                 !(name == "tip-tilt" || name == "segment_tip-tilt" || name == "segment_piston")
+            })
+            .collect();
+        #[cfg(fem)]
+        for output in &self.outputs {
+            match output {
+                Outputs::TipTilt | Outputs::SegmentTipTilt | Outputs::SegmentPiston => {
+                    let var = Outputs::OSSM1Lcl;
+                    outs.push(var.name());
+                    let var = Outputs::MCM2Lcl6D;
+                    outs.push(var.name());
+                }
+                _ => {}
+            }
+        }
+        outs.dedup();
+        outs
+    }
+    /// Returns the names of the linear optical model outputs
+    pub fn lom_outputs(&self) -> Vec<String> {
+        self.outputs
+            .iter()
+            .map(|io| io.name())
+            .filter(|name| {
+                name == "tip-tilt" || name == "segment_tip-tilt" || name == "segment_piston"
             })
             .collect()
     }
