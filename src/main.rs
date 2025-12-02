@@ -23,6 +23,7 @@ fn main() -> anyhow::Result<()> {
         "frequency response computed in {:.3}s",
         now.elapsed().as_secs_f64()
     );
+    println!("{frequency_response}");
 
     TransferFunctionData::from(&args)
         .add_response(frequency_response)

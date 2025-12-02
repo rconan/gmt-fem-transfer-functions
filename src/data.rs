@@ -1,6 +1,6 @@
 use nalgebra::{Complex, ComplexField, DMatrix};
 use serde::Serialize;
-use std::{env, fmt::Display, fs::File, io, path::Path};
+use std::{env, fmt::Display, fs::File, io, ops::Deref, path::Path};
 
 use crate::cli::Cli;
 
@@ -18,8 +18,29 @@ pub enum TransferFunctionDataError {
 
 type Result<T> = std::result::Result<T, TransferFunctionDataError>;
 
+pub trait Dims {
+    type D: std::fmt::Debug + Serialize;
+    fn size(&self) -> Self::D;
+}
+
+impl Dims for DMatrix<f64> {
+    type D = (usize, usize);
+
+    fn size(&self) -> Self::D {
+        self.shape()
+    }
+}
+
+impl Dims for f64 {
+    type D = usize;
+
+    fn size(&self) -> Self::D {
+        1
+    }
+}
+
 pub trait Cartesian2Polar {
-    type Output: std::fmt::Debug + Serialize;
+    type Output: Dims + std::fmt::Debug + Serialize;
     fn magnitude(&self) -> Self::Output;
     fn phase(&self) -> Self::Output;
 }
@@ -74,12 +95,65 @@ where
 }
 
 #[derive(Debug, Default, Serialize)]
+pub struct FrequencyResponseVec<T: Cartesian2Polar>(Vec<FrequencyResponseData<T>>);
+
+impl<T: Cartesian2Polar> FrequencyResponseVec<T> {
+    pub fn new(frequency_response_datas: Vec<FrequencyResponseData<T>>) -> Self {
+        Self(frequency_response_datas)
+    }
+    pub fn frequencies(&self) -> Vec<f64> {
+        self.iter().map(|fr| fr.frequency).collect()
+    }
+}
+
+impl<T: Cartesian2Polar> Deref for FrequencyResponseVec<T> {
+    type Target = [FrequencyResponseData<T>];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<T: Cartesian2Polar> FromIterator<FrequencyResponseData<T>> for FrequencyResponseVec<T> {
+    fn from_iter<I: IntoIterator<Item = FrequencyResponseData<T>>>(iter: I) -> Self {
+        Self(iter.into_iter().collect())
+    }
+}
+
+impl<T: Cartesian2Polar> Display for FrequencyResponseVec<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "GMT FEM frequency response matrix {}x{:?}",
+            self.len(),
+            self[0].magnitude.size()
+        )?;
+        match self.len() {
+            n if n == 1 => {
+                writeln!(f, " @ {:.2}Hz", self[0].frequency)
+            }
+            n if n < 6 => {
+                writeln!(f, " @ {:.2?}Hz", self.frequencies())
+            }
+            _ => {
+                writeln!(
+                    f,
+                    " @ [{:.2},{:.2}]Hz",
+                    self[0].frequency,
+                    self.last().unwrap().frequency
+                )
+            }
+        }
+    }
+}
+
+#[derive(Debug, Default, Serialize)]
 pub struct TransferFunctionData {
     fem: String,
     inputs: Vec<String>,
     outputs: Vec<String>,
     modal_damping_coefficient: f64,
-    frequency_response: Vec<FrequencyResponseData<DMatrix<Complex<f64>>>>,
+    frequency_response: FrequencyResponseVec<DMatrix<Complex<f64>>>,
 }
 
 impl From<&Cli> for TransferFunctionData {
@@ -119,7 +193,7 @@ impl TransferFunctionData {
 
     pub fn add_response(
         self,
-        frequency_response: Vec<FrequencyResponseData<DMatrix<Complex<f64>>>>,
+        frequency_response: FrequencyResponseVec<DMatrix<Complex<f64>>>,
     ) -> Self {
         Self {
             frequency_response,

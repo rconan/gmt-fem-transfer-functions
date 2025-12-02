@@ -3,7 +3,7 @@ use num_complex::Complex;
 use rayon::prelude::*;
 use std::{f64::consts::PI, ops::Mul};
 
-use crate::data::{Cartesian2Polar, FrequencyResponseData};
+use crate::data::{Cartesian2Polar, FrequencyResponseData, FrequencyResponseVec};
 
 const DPI: f64 = 2f64 * PI;
 
@@ -79,17 +79,14 @@ pub trait FrequencyResponse {
     /// Returns the frequencies and the frequency response
     ///
     /// The argument is frequencies in Hz
-    fn frequency_response<T: Into<Frequencies>>(
-        &self,
-        nu: T,
-    ) -> Vec<FrequencyResponseData<Self::Output>>
+    fn frequency_response<T: Into<Frequencies>>(&self, nu: T) -> FrequencyResponseVec<Self::Output>
     where
         <Self as FrequencyResponse>::Output: Cartesian2Polar + Send,
         <<Self as FrequencyResponse>::Output as Cartesian2Polar>::Output: Send,
         Self: Sync,
     {
         let frequencies: Frequencies = nu.into();
-        match frequencies {
+        let data = match frequencies {
             Frequencies::Single { value: nu } => {
                 let jw = Complex::new(0f64, DPI * nu);
                 vec![FrequencyResponseData::new(nu, self.j_omega(jw))]
@@ -129,7 +126,8 @@ pub trait FrequencyResponse {
                     FrequencyResponseData::new(nu, self.j_omega(jw))
                 })
                 .collect(),
-        }
+        };
+        FrequencyResponseVec::new(data)
     }
     /// Returns the first derivation of the frequency response
     fn j_omega_first(
