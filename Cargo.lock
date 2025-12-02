@@ -1395,12 +1395,14 @@ name = "gmt-fem-frequency-response"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bincode 2.0.1",
  "clap 4.5.53",
  "gmt-fem",
  "gmt-fem-code-builder",
  "gmt-lom",
  "gmt_dos-clients_fem",
  "indicatif 0.18.3",
+ "lz4_flex 0.12.0",
  "nalgebra",
  "num-complex",
  "rayon",
@@ -1412,6 +1414,8 @@ dependencies = [
 [[package]]
 name = "gmt-lom"
 version = "2.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbd9ddd3c9d2733a720e6c5d7408458dd1bb6a87ee76891a76b99fec711b2f52"
 dependencies = [
  "anyhow",
  "arrow",
@@ -1924,6 +1928,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "lz4_flex"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ab6473172471198271ff72e9379150e9dfd70d8e533e0752a27e515b48dd375e"
+dependencies = [
+ "twox-hash",
+]
+
+[[package]]
 name = "matio-rs"
 version = "1.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2278,7 +2291,7 @@ dependencies = [
  "flate2",
  "half",
  "hashbrown 0.15.5",
- "lz4_flex",
+ "lz4_flex 0.11.5",
  "num",
  "num-bigint 0.4.6",
  "paste",

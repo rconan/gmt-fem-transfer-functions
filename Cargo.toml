@@ -5,11 +5,13 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.100"
+bincode = { version = "2.0.1", features = ["serde"] }
 clap = { version = "4.5.53", features = ["derive"] }
 gmt-fem = "5.2.1"
 gmt-lom = "2.6.2"
 gmt_dos-clients_fem = "5.2.0"
 indicatif = { version = "0.18.3", features = ["rayon"] }
+lz4_flex = "0.12.0"
 nalgebra = { version = "0.33.2", features = ["rayon", "serde", "serde-serialize"] }
 num-complex = "0.4.6"
 rayon = "1.11.0"
@@ -24,6 +26,3 @@ gmt-fem-code-builder = "2.3.8"
 unexpected_cfgs = { level = "warn", check-cfg = [
     'cfg(fem)',
 ] }
-
-[patch.crates-io]
-gmt-lom = {path="/home/rconan/projects/gmt-lom"}

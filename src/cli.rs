@@ -1,15 +1,23 @@
 //! Command line interface
 
+use std::{io, time::Instant};
+
 use crate::{
     Inputs, Outputs,
     frequency_response::Frequencies,
-    structural::{Structural, StructuralBuilder, StructuralError},
+    structural::{Structural, StructuralBuilder},
 };
 use clap::Parser;
-use gmt_lom::{
-    LinearOpticalModelError, Loader, LoaderTrait, OpticalSensitivities, OpticalSensitivity,
-};
+use gmt_lom::{OpticalSensitivities, OpticalSensitivity};
 use nalgebra::{DMatrix, RowDVector};
+
+#[derive(Debug, thiserror::Error)]
+pub enum CliError {
+    #[error("failed to load optical sensitivities")]
+    LoadOpticalSensitivities(#[from] io::Error),
+    #[error("failed to decompress optical sensitivities")]
+    DecompressOpticalSensitivities(#[from] lz4_flex::block::DecompressError),
+}
 
 /// Command line interface
 #[derive(Parser)]
@@ -74,8 +82,29 @@ impl Cli {
             })
             .collect()
     }
-    pub fn lom_sensitivies(&self) -> Result<Option<DMatrix<f64>>, LinearOpticalModelError> {
-        let sensitivities = Loader::<OpticalSensitivities>::default().load()?;
+    pub fn lom_sensitivies(&self) -> Result<Option<DMatrix<f64>>, CliError> {
+        use std::fs::File;
+        use std::io::Read;
+        let now = Instant::now();
+        let mut file = File::open("optical_sensitivities.lz4")?;
+        let mut buffer = vec![];
+        file.read_to_end(&mut buffer)?;
+        let decompressed = lz4_flex::decompress_size_prepended(buffer.as_slice())?;
+        let (sensitivities, _): (OpticalSensitivities, usize) =
+            bincode::serde::decode_from_slice(&decompressed, bincode::config::standard()).unwrap();
+        println!(
+            "loaded linear optical model sensitivities in {}ms",
+            now.elapsed().as_millis()
+        );
+        // use gmt_lom::{Loader,LoaderTrait};
+        // let sensitivities = Loader::<OpticalSensitivities>::default().load()?;
+        // let encoded =
+        //     bincode::serde::encode_to_vec(&sensitivities, bincode::config::standard()).unwrap();
+        // let compressed = lz4_flex::compress_prepend_size(&encoded);
+        // use std::fs::File;
+        // use std::io::Write;
+        // let mut file = File::create("optical_sensitivities.lz4").unwrap();
+        // file.write_all(&compressed).unwrap();
         let rows: Vec<_> = self
             .outputs
             .iter()
@@ -113,7 +142,7 @@ impl Cli {
 }
 
 impl TryFrom<&Cli> for Structural {
-    type Error = StructuralError;
+    type Error = crate::Error;
 
     fn try_from(args: &Cli) -> Result<Self, Self::Error> {
         Ok(StructuralBuilder {
