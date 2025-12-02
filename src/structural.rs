@@ -1,4 +1,4 @@
-use std::f64::consts;
+use std::{f64::consts, fmt::Display};
 
 use gmt_dos_clients_fem::{Model, Switch};
 use gmt_fem::FEM;
@@ -59,11 +59,12 @@ pub struct Structural {
     // damping coefficient
     z: f64,
 }
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct StructuralBuilder {
     inputs: Vec<String>,
     outputs: Vec<String>,
     z: f64,
+    min_eigen_frequency: Option<f64>,
     max_eigen_frequency: Option<f64>,
     file_name: String,
     static_gain_mismatch: Option<StaticGainCompensation>,
@@ -77,8 +78,15 @@ impl BuilderTrait for StructuralBuilder {
     /// Truncates the eigen frequencies to and including `max_eigen_frequency`
     ///
     /// The number of modes is set accordingly
-    fn max_eigen_frequency(mut self, max_eigen_frequency: f64) -> Self {
-        self.max_eigen_frequency = Some(max_eigen_frequency);
+    fn max_eigen_frequency(mut self, max_eigen_frequency: Option<f64>) -> Self {
+        self.max_eigen_frequency = max_eigen_frequency;
+        self
+    }
+    /// Drops the eigen frequencies less than `min_eigen_frequency`
+    ///
+    /// The number of modes is set accordingly
+    fn min_eigen_frequency(mut self, min_eigen_frequency: Option<f64>) -> Self {
+        self.min_eigen_frequency = min_eigen_frequency;
         self
     }
     /// Sets the filename where [Structural] is seralize to
@@ -106,12 +114,11 @@ impl StructuralBuilder {
             outputs,
             z: 2. / 100.,
             file_name: "structural".into(),
-            static_gain_mismatch: None,
-            max_eigen_frequency: None,
+            ..Default::default()
         }
     }
     /// Builds the [Structural] model
-    pub fn build(mut self) -> Result<Structural> {
+    pub fn build(self) -> Result<Structural> {
         // let repo = env::var("DATA_REPO").unwrap_or_else(|_| ".".to_string());
         // let path = Path::new(&repo).join(self.file_name).with_extension("bin");
         // if let Ok(file) = File::open(&path) {
@@ -128,11 +135,13 @@ impl StructuralBuilder {
         // } else {
         println!("building structural from FEM");
         let mut fem = FEM::from_env()?;
+        println!("{fem}");
+        let eigen_freq = fem.eigen_frequencies.clone();
+
         fem.switch_inputs(Switch::Off, None)
             .switch_inputs_by_name(self.inputs.clone(), Switch::On)?
             .switch_outputs(Switch::Off, None)
             .switch_outputs_by_name(self.outputs.clone(), Switch::On)?;
-        println!("{fem}");
         let b = DMatrix::<f64>::from_row_slice(fem.n_modes(), fem.n_inputs(), &fem.inputs2modes())
             .map(|x| Complex::new(x, 0f64));
         let c =
@@ -141,27 +150,84 @@ impl StructuralBuilder {
         let g_ssol = fem.reduced_static_gain();
         let w = fem.eigen_frequencies_to_radians();
 
-        self.static_gain_mismatch.as_mut().map(|sgm| {
-            let g_dsol = fem.static_gain();
-            let delta_g = g_ssol.as_ref().expect("failed to get FEM static gain") - g_dsol;
-            sgm.delta_gain = delta_g.map(|x| Complex::new(x, 0f64));
-        });
+        // self.static_gain_mismatch.as_mut().map(|sgm| {
+        //     let g_dsol = fem.static_gain();
+        //     let delta_g = g_ssol.as_ref().expect("failed to get FEM static gain") - g_dsol;
+        //     sgm.delta_gain = delta_g.map(|x| Complex::new(x, 0f64));
+        // });
 
-        let this = Structural {
-            inputs: self.inputs,
-            outputs: self.outputs,
-            b,
-            c,
-            g_ssol,
-            static_gain_mismatch: self.static_gain_mismatch,
-            w,
-            z: self.z,
+        let q = match (self.min_eigen_frequency, self.max_eigen_frequency) {
+            (Some(min), Some(max)) => Some((
+                eigen_freq
+                    .iter()
+                    .copied()
+                    .enumerate()
+                    .find(|(_, f)| *f >= min)
+                    .unwrap_or_default()
+                    .0,
+                eigen_freq
+                    .iter()
+                    .copied()
+                    .filter_map(|f| (f >= min && f <= max).then(|| f))
+                    .enumerate()
+                    .last()
+                    .unwrap_or_default()
+                    .0
+                    + 1,
+            )),
+            (None, Some(max)) => Some((
+                0,
+                eigen_freq
+                    .iter()
+                    .copied()
+                    .filter_map(|f| (f <= max).then(|| f))
+                    .enumerate()
+                    .last()
+                    .unwrap_or_default()
+                    .0
+                    + 1,
+            )),
+            (Some(min), None) => {
+                let s = eigen_freq
+                    .iter()
+                    .copied()
+                    .enumerate()
+                    .find(|(_, f)| *f >= min)
+                    .unwrap_or_default()
+                    .0;
+                Some((s, eigen_freq.len() - s))
+            }
+            (None, None) => None,
         };
+
+        Ok(if let Some((s, n)) = q {
+            Structural {
+                inputs: self.inputs,
+                outputs: self.outputs,
+                b: b.rows(s, n).into_owned(),
+                c: c.columns(s, n).into_owned(),
+                g_ssol,
+                static_gain_mismatch: None, //self.static_gain_mismatch,
+                w: w[s..s + n].to_vec(),
+                z: self.z,
+            }
+        } else {
+            Structural {
+                inputs: self.inputs,
+                outputs: self.outputs,
+                b,
+                c,
+                g_ssol,
+                static_gain_mismatch: None, //self.static_gain_mismatch,
+                w,
+                z: self.z,
+            }
+        })
         // let file = File::create(&path)?;
         // let mut buffer = BufWriter::new(file);
         // bincode::serde::encode_into_std_write(&this, &mut buffer, bincode::config::standard())?;
         // println!("structural save to {:?}", path);
-        Ok(this)
+        // Ok(this)
         // }
     }
 }
@@ -186,6 +252,28 @@ impl Structural {
             .collect()
     }
 }
+
+impl Display for Structural {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "GMT structural dynamic model:")?;
+        writeln!(f, " * inputs: {:?}", self.inputs)?;
+        writeln!(f, " * outputs: {:?}", self.outputs)?;
+        writeln!(
+            f,
+            " * eigen frequencies: ({:.3},{:.3})Hz",
+            0.5 * self.w[0] * consts::FRAC_1_PI,
+            0.5 * self.w.last().unwrap() * consts::FRAC_1_PI
+        )?;
+        writeln!(f, " * damping: {:}%", self.z * 1e2)?;
+        writeln!(f, " * B matrix {:?}", self.b.shape())?;
+        writeln!(f, " * C matrix {:?}", self.c.shape())?;
+        if let Some(g) = self.g_ssol.as_ref() {
+            writeln!(f, " * static gain matrix {:?}", g.shape())?;
+        }
+        Ok(())
+    }
+}
+
 impl FrequencyResponse for Structural {
     type Output = DMatrix<Complex<f64>>;
 

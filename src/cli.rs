@@ -12,6 +12,12 @@ pub struct Cli {
     /// FEM modal damping coeffcient
     #[arg(short = 'z', long, default_value_t = 0.02f64)]
     pub structural_damping: f64,
+    /// FEM minimum eigen frequency (lower frequencies are dropped)
+    #[arg(long)]
+    pub eigen_frequency_min: Option<f64>,
+    /// FEM maximum eigen frequency (higher frequencies are truncated)
+    #[arg(long)]
+    pub eigen_frequency_max: Option<f64>,
     /// Frequencies [Hz]
     #[command(subcommand)]
     pub frequencies: Frequencies,

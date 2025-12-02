@@ -11,7 +11,11 @@ pub trait BuilderTrait {
     /// Truncates the eigen frequencies to and including `max_eigen_frequency`
     ///
     /// The number of modes is set accordingly
-    fn max_eigen_frequency(self, max_eigen_frequency: f64) -> Self;
+    fn max_eigen_frequency(self, max_eigen_frequency: Option<f64>) -> Self;
+    /// Drops the eigen frequencies less than `min_eigen_frequency`
+    ///
+    /// The number of modes is set accordingly
+    fn min_eigen_frequency(self, min_eigen_frequency: Option<f64>) -> Self;
     /// Sets the filename where [Structural] is seralize to
     fn filename<S: Into<String>>(self, file_name: S) -> Self;
     /// Enables the compensation of the static gain mismatch

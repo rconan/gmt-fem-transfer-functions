@@ -14,7 +14,10 @@ fn main() -> anyhow::Result<()> {
         args.outputs.iter().map(|io| io.name()).collect(),
     )
     .damping(args.structural_damping)
+    .min_eigen_frequency(args.eigen_frequency_min)
+    .max_eigen_frequency(args.eigen_frequency_max)
     .build()?;
+    println!("{model}");
 
     let nu = args.frequencies.clone();
     let now = Instant::now();
