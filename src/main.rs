@@ -8,14 +8,11 @@ use gmt_fem_frequency_response::{
 fn main() -> anyhow::Result<()> {
     let args: Cli = Cli::parse();
 
-    let model = Structural::builder(
-        args.inputs.iter().map(|io| io.name()).collect(),
-        args.outputs.iter().map(|io| io.name()).collect(),
-    )
-    .damping(args.structural_damping)
-    .min_eigen_frequency(args.eigen_frequency_min)
-    .max_eigen_frequency(args.eigen_frequency_max)
-    .build()?;
+    let model = Structural::builder(args.fem_inputs(), args.fem_outputs())
+        .damping(args.structural_damping)
+        .min_eigen_frequency(args.eigen_frequency_min)
+        .max_eigen_frequency(args.eigen_frequency_max)
+        .build()?;
     println!("{model}");
 
     let nu = args.frequencies.clone();

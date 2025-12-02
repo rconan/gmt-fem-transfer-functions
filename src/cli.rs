@@ -28,3 +28,18 @@ pub struct Cli {
     #[arg(short, long, default_value_t = String::from("gmt_frequency_response.pkl"))]
     pub filename: String,
 }
+
+impl Cli {
+    pub fn fem_inputs(&self) -> Vec<String> {
+        self.inputs.iter().map(|io| io.name()).collect()
+    }
+    pub fn fem_outputs(&self) -> Vec<String> {
+        self.outputs
+            .iter()
+            .map(|io| io.name())
+            .filter(|name| {
+                !(name == "tip-tilt" || name == "segment_tip-tilt" || name == "segment_piston")
+            })
+            .collect()
+    }
+}
