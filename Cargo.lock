@@ -1318,7 +1318,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "gmt-fem-transfer-functions"
+name = "gmt-fem-frequency-response"
 version = "0.1.0"
 dependencies = [
  "anyhow",
