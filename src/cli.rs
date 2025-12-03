@@ -2,11 +2,7 @@
 
 use std::{io, time::Instant};
 
-use crate::{
-    Inputs, Outputs,
-    frequency_response::Frequencies,
-    structural::{Structural, StructuralBuilder},
-};
+use crate::{Inputs, Outputs, frequency_response::Frequencies};
 use clap::Parser;
 use gmt_lom::{OpticalSensitivities, OpticalSensitivity};
 use nalgebra::{DMatrix, RowDVector};
@@ -17,6 +13,8 @@ pub enum CliError {
     LoadOpticalSensitivities(#[from] io::Error),
     #[error("failed to decompress optical sensitivities")]
     DecompressOpticalSensitivities(#[from] lz4_flex::block::DecompressError),
+    #[error("failed to deserialize optical sensitivities")]
+    DeserOpticalSensitivities(#[from] bincode::error::DecodeError),
 }
 
 /// Command line interface
@@ -91,7 +89,7 @@ impl Cli {
         file.read_to_end(&mut buffer)?;
         let decompressed = lz4_flex::decompress_size_prepended(buffer.as_slice())?;
         let (sensitivities, _): (OpticalSensitivities, usize) =
-            bincode::serde::decode_from_slice(&decompressed, bincode::config::standard()).unwrap();
+            bincode::serde::decode_from_slice(&decompressed, bincode::config::standard())?;
         println!(
             "loaded linear optical model sensitivities in {}ms",
             now.elapsed().as_millis()
@@ -138,25 +136,5 @@ impl Cli {
             })
             .collect();
         Ok((!rows.is_empty()).then(|| DMatrix::<f64>::from_rows(rows.as_slice())))
-    }
-}
-
-impl TryFrom<&Cli> for Structural {
-    type Error = crate::Error;
-
-    fn try_from(args: &Cli) -> Result<Self, Self::Error> {
-        Ok(StructuralBuilder {
-            built: Structural {
-                inputs: args.fem_inputs(),
-                outputs: args.fem_outputs(),
-                z: args.structural_damping,
-                optical_senses: args.lom_sensitivies()?,
-                ..Default::default()
-            },
-            min_eigen_frequency: args.eigen_frequency_min,
-            max_eigen_frequency: args.eigen_frequency_max,
-            ..Default::default()
-        }
-        .build()?)
     }
 }
