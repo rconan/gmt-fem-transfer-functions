@@ -16,6 +16,8 @@ pub enum TransferFunctionDataError {
     CreateDataFile(#[from] io::Error),
     #[error("failed to serialize data to pickle file")]
     SerPkl(#[from] serde_pickle::Error),
+    #[error("failed to write to Matlab data file")]
+    Matlab(#[from] matio_rs::MatioError),
 }
 
 type Result<T> = std::result::Result<T, TransferFunctionDataError>;
@@ -197,12 +199,36 @@ impl TransferFunctionData {
                 serde_pickle::to_writer(&mut file, &self, Default::default())?;
                 Ok(())
             }
-            Some(ext) if ext == "mat" => todo!(),
+            Some(ext) if ext == "mat" => self.dump_to_mat(path),
             Some(ext) => Err(TransferFunctionDataError::DataFileExtension(
                 ext.to_string_lossy().into_owned(),
             )),
             None => Err(TransferFunctionDataError::MissingFileExtension),
         }
+    }
+
+    pub fn dump_to_mat(self, path: impl AsRef<Path>) -> Result<()> {
+        use matio_rs::{Mat, MatFile, MayBeFrom};
+        let mut fields = vec![
+            Mat::maybe_from("fem", self.fem)?,
+            Mat::maybe_from("inputs", self.inputs)?,
+            Mat::maybe_from("outputs", self.outputs)?,
+            Mat::maybe_from("modal_damping_coefficient", self.modal_damping_coefficient)?,
+        ];
+        let mut data = vec![];
+        for r in self.frequency_response.iter() {
+            let data_fields = vec![
+                Mat::maybe_from("frequency", r.frequency)?,
+                Mat::maybe_from("magnitude", r.magnitude.clone())?,
+                Mat::maybe_from("phase", r.phase.clone())?,
+            ];
+            data.push(Mat::maybe_from("data", data_fields)?);
+        }
+        let data_iter = Box::new(data.into_iter()) as Box<dyn Iterator<Item = Mat>>;
+        fields.push(Mat::maybe_from("frequency_response", vec![data_iter])?);
+        let mstruct = Mat::maybe_from("transfer_functions", fields)?;
+        MatFile::save(path)?.write(mstruct);
+        Ok(())
     }
 
     /// Adds the [frequency response](FrequencyResponseVec) to the data
