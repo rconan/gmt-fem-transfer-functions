@@ -26,3 +26,17 @@ Computing the transfer functions between M1 hardpoints and the segment tip-tilt 
 ```shell
 cargo r -r -- -i oss-harpoint-delta-f -o segment-tip-tilt -f m1-hp_segment-tt.mat log-space -l 0.01 -u 100 -n 1000
 ```
+
+# Installation
+
+Instead of running from the crate location, a executable binary can be compiled locally with:
+
+```shell
+FEM_REPO=<path-to-FEM> cargo install --git https://github.com/rconan/gmt-fem-transfer-functions.git --bin gmt-fem-transfer-functions
+```
+
+The binary is installed locally and the CLI app is called simply by invoking `gmt-fem-transfer-functions` (but still with `FEM_REPO` set to the path the GMT FEM) e.g.
+```shell
+FEM_REPO=<path-to-FEM> gmt-fem-transfer-functions -i oss-harpoint-delta-f -o segment-tip-tilt -f m1-hp_segment-tt.mat log-space -l 0.01 -u 100 -n 1000
+```
+

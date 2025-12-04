@@ -7,7 +7,7 @@ authors = [
   "Christoph Dribusch <cdribusch@gmto.org>",
 ]
 edition = "2024"
-default-run = "main"
+default-run = "gmt-fem-frequency-response"
 license = "MIT OR Apache-2.0"
 description = "GMT FEM Transfer Functions CLI"
 readme = "README.md"
@@ -42,7 +42,7 @@ gmt-fem-code-builder = "2.3.8"
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fem)'] }
 
 [[bin]]
-name = "main"
+name = "gmt-fem-frequency-response"
 path = "src/main.rs"
 
 [[bin]]
