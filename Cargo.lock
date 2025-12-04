@@ -1939,9 +1939,9 @@ dependencies = [
 
 [[package]]
 name = "matio-rs"
-version = "1.5.0"
+version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9d32e4df661dcc57af9f3e0940f85d46b85bd7b61225c41c77bd2949ca217d45"
+checksum = "5d9782b4ade850315f302c1dc9d196c116f3ad186908cde526b2048ee539e08e"
 dependencies = [
  "matio-rs-sys",
  "matio-rs_derive",

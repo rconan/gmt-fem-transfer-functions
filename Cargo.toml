@@ -23,7 +23,7 @@ gmt-lom = { version = "2.6.2", optional = true }
 gmt_dos-clients_fem = "5.2.0"
 indicatif = { version = "0.18.3", features = ["rayon"] }
 lz4_flex = "0.12.0"
-matio-rs = { version = "1.5.0", features = ["nalgebra"] }
+matio-rs = { version = "1.6.0", features = ["nalgebra"] }
 nalgebra = { version = "0.33.2", features = [
   "rayon",
   "serde",

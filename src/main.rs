@@ -20,6 +20,7 @@ fn main() -> anyhow::Result<()> {
     println!("{frequency_response}");
 
     TransferFunctionData::from(&args)
+        .add_structural(&model)
         .add_response(frequency_response)
         .dump(args.filename)?;
 

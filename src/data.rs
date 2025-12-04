@@ -2,9 +2,9 @@
 
 use nalgebra::{Complex, ComplexField, DMatrix};
 use serde::Serialize;
-use std::{env, fmt::Display, fs::File, io, ops::Deref, path::Path};
+use std::{env, f64, fmt::Display, fs::File, io, ops::Deref, path::Path};
 
-use crate::cli::Cli;
+use crate::{cli::Cli, structural::Structural};
 
 #[derive(Debug, thiserror::Error)]
 pub enum TransferFunctionDataError {
@@ -106,7 +106,9 @@ where
 
 /// Collection of [FrequencyResponseData]
 #[derive(Debug, Default, Serialize)]
-pub struct FrequencyResponseVec<T: Cartesian2Polar>(Vec<FrequencyResponseData<T>>);
+pub struct FrequencyResponseVec<T: Cartesian2Polar>(
+    #[serde(rename = "data")] Vec<FrequencyResponseData<T>>,
+);
 
 impl<T: Cartesian2Polar> FrequencyResponseVec<T> {
     /// Creates a new [FrequencyResponseVec] instance from a vector of [FrequencyResponseData]
@@ -166,6 +168,7 @@ pub struct TransferFunctionData {
     inputs: Vec<String>,
     outputs: Vec<String>,
     modal_damping_coefficient: f64,
+    fem_eigen_frequency_range: (f64, f64),
     frequency_response: FrequencyResponseVec<DMatrix<Complex<f64>>>,
 }
 
@@ -214,6 +217,7 @@ impl TransferFunctionData {
             Mat::maybe_from("inputs", self.inputs)?,
             Mat::maybe_from("outputs", self.outputs)?,
             Mat::maybe_from("modal_damping_coefficient", self.modal_damping_coefficient)?,
+            Mat::maybe_from("fem_eigen_frequency_range", self.fem_eigen_frequency_range)?,
         ];
         let mut data = vec![];
         for r in self.frequency_response.iter() {
@@ -238,6 +242,15 @@ impl TransferFunctionData {
     ) -> Self {
         Self {
             frequency_response,
+            ..self
+        }
+    }
+
+    /// Adds additional data from the structural model
+    pub fn add_structural(self, structural: &Structural) -> Self {
+        let c = 0.5 * f64::consts::FRAC_1_PI;
+        Self {
+            fem_eigen_frequency_range: (structural.w[0] * c, *structural.w.last().unwrap() * c),
             ..self
         }
     }

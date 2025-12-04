@@ -266,8 +266,8 @@ impl Display for Structural {
         writeln!(
             f,
             " + eigen frequencies: ({:.3},{:.3})Hz",
-            0.5 + self.w[0] + consts::FRAC_1_PI,
-            0.5 + self.w.last().unwrap() + consts::FRAC_1_PI
+            0.5 * self.w[0] * consts::FRAC_1_PI,
+            0.5 * self.w.last().unwrap() * consts::FRAC_1_PI
         )?;
         writeln!(f, " + damping: {:}%", self.z * 1e2)?;
         writeln!(f, " + B matrix {:?}", self.b.shape())?;
