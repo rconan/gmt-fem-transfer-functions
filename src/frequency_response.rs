@@ -1,6 +1,6 @@
 //! Frequency response functionalities
 
-use indicatif::ParallelProgressIterator;
+use indicatif::{ParallelProgressIterator, ProgressStyle};
 use num_complex::Complex;
 use rayon::prelude::*;
 use std::{f64::consts::PI, ops::Mul};
@@ -97,6 +97,9 @@ pub trait FrequencyResponse {
         Self: Sync,
     {
         let frequencies: Frequencies = nu.into();
+        let style = ProgressStyle::with_template("|{bar} {pos}|")
+            .unwrap()
+            .progress_chars("-.-");
         let data = match frequencies {
             Frequencies::Single { value: nu } => {
                 let jw = Complex::new(0f64, DPI * nu);
@@ -107,7 +110,7 @@ pub trait FrequencyResponse {
                 let log_step = (upper.log10() - lower.log10()) / (n - 1) as f64;
                 (0..n)
                     .into_par_iter()
-                    .progress()
+                    .progress_with_style(style)
                     .map(|i| {
                         let log_nu = lower.log10() + log_step * i as f64;
                         let nu = 10f64.powf(log_nu);
@@ -121,7 +124,7 @@ pub trait FrequencyResponse {
                 let step = (upper - lower) / (n - 1) as f64;
                 (0..n)
                     .into_par_iter()
-                    .progress()
+                    .progress_with_style(style)
                     .map(|i| {
                         let nu = lower + step * i as f64;
                         let jw = Complex::new(0f64, DPI * nu);
@@ -131,7 +134,7 @@ pub trait FrequencyResponse {
             }
             Frequencies::Set { values: nu } => nu
                 .into_par_iter()
-                .progress()
+                .progress_with_style(style)
                 .map(|nu| {
                     let jw = Complex::new(0f64, DPI * nu);
                     FrequencyResponseData::new(nu, self.j_omega(jw))
