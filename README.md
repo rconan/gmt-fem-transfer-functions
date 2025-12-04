@@ -17,7 +17,7 @@ cargo r -r -- help log-space
 ```
 ## Examples
 
-Computing the transfer functions between M1 hardpoints and M1 & M2 rigid body motions, at the frequencies [1,5,10,20]Hz (the transfer functions is saved by default to the pickle file: `gmt_frequency_response.pkl`):
+Computing the transfer functions between M1 hardpoints and M1 & M2 rigid body motions, at the frequencies [1,5,10,20]Hz (the transfer functions are saved by default to the pickle file: `gmt_frequency_response.pkl`):
 ```shell
 cargo r -r -- -i oss-harpoint-delta-f -o ossm1-lcl -o mcm2-lcl6-d set -v 1 -v 5 -v 10 -v 20
 ```
