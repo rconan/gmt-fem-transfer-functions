@@ -4,8 +4,8 @@ use std::{io, time::Instant};
 
 use crate::{Inputs, Outputs, frequency_response::Frequencies};
 use clap::Parser;
-use gmt_lom::{OpticalSensitivities, OpticalSensitivity};
-use nalgebra::{DMatrix, RowDVector};
+use nalgebra::DMatrix;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, thiserror::Error)]
 pub enum CliError {
@@ -15,6 +15,29 @@ pub enum CliError {
     DecompressOpticalSensitivities(#[from] lz4_flex::block::DecompressError),
     #[error("failed to deserialize optical sensitivities")]
     DeserOpticalSensitivities(#[from] bincode::error::DecodeError),
+    #[error("")]
+    Lom,
+}
+
+#[derive(Default, Debug, Serialize, Deserialize)]
+pub struct Lom {
+    pub tip_tilt: Vec<f64>,
+    pub segment_tip_tilt: Vec<f64>,
+    pub segment_piston: Vec<f64>,
+}
+impl Lom {
+    pub fn new() -> Result<Self, CliError> {
+        let now = Instant::now();
+        let buffer: &[u8] = include_bytes!("lom.lz4");
+        let decompressed = lz4_flex::decompress_size_prepended(buffer)?;
+        let (lom, _): (Lom, usize) =
+            bincode::serde::decode_from_slice(&decompressed, bincode::config::standard())?;
+        println!(
+            "loaded linear optical sensitivity matrices in {}mus",
+            now.elapsed().as_micros()
+        );
+        Ok(lom)
+    }
 }
 
 /// Command line interface
@@ -81,60 +104,63 @@ impl Cli {
             .collect()
     }
     pub fn lom_sensitivies(&self) -> Result<Option<DMatrix<f64>>, CliError> {
-        use std::fs::File;
-        use std::io::Read;
-        let now = Instant::now();
-        let mut file = File::open("optical_sensitivities.lz4")?;
-        let mut buffer = vec![];
-        file.read_to_end(&mut buffer)?;
-        let decompressed = lz4_flex::decompress_size_prepended(buffer.as_slice())?;
-        let (sensitivities, _): (OpticalSensitivities, usize) =
-            bincode::serde::decode_from_slice(&decompressed, bincode::config::standard())?;
-        println!(
-            "loaded linear optical model sensitivities in {}ms",
-            now.elapsed().as_millis()
-        );
-        // use gmt_lom::{Loader,LoaderTrait};
-        // let sensitivities = Loader::<OpticalSensitivities>::default().load()?;
-        // let encoded =
-        //     bincode::serde::encode_to_vec(&sensitivities, bincode::config::standard()).unwrap();
-        // let compressed = lz4_flex::compress_prepend_size(&encoded);
-        // use std::fs::File;
-        // use std::io::Write;
-        // let mut file = File::create("optical_sensitivities.lz4").unwrap();
-        // file.write_all(&compressed).unwrap();
-        let rows: Vec<_> = self
+        let mut lom = Option::<Lom>::None;
+        let mats: Vec<DMatrix<f64>> = self
             .outputs
             .iter()
-            .filter_map(|output| match output {
-                Outputs::TipTilt => {
-                    Some(sensitivities[OpticalSensitivity::TipTilt(vec![])].clone())
-                }
-                Outputs::SegmentTipTilt => {
-                    Some(sensitivities[OpticalSensitivity::SegmentTipTilt(vec![])].clone())
-                }
-                Outputs::SegmentPiston => {
-                    Some(sensitivities[OpticalSensitivity::SegmentPiston(vec![])].clone())
-                }
-                _ => None,
+            .map(|output| match output {
+                Outputs::TipTilt => Ok(Some(DMatrix::<f64>::from_column_slice(
+                    2,
+                    84,
+                    &{
+                        if lom.is_none() {
+                            lom = Some(Lom::new()?);
+                            lom.as_ref()
+                        } else {
+                            lom.as_ref()
+                        }
+                    }
+                    .unwrap()
+                    .tip_tilt,
+                ))),
+                Outputs::SegmentTipTilt => Ok(Some(DMatrix::<f64>::from_column_slice(
+                    14,
+                    84,
+                    &{
+                        if lom.is_none() {
+                            lom = Some(Lom::new()?);
+                            lom.as_ref()
+                        } else {
+                            lom.as_ref()
+                        }
+                    }
+                    .unwrap()
+                    .segment_tip_tilt,
+                ))),
+                Outputs::SegmentPiston => Ok(Some(DMatrix::<f64>::from_column_slice(
+                    7,
+                    84,
+                    &{
+                        if lom.is_none() {
+                            lom = Some(Lom::new()?);
+                            lom.as_ref()
+                        } else {
+                            lom.as_ref()
+                        }
+                    }
+                    .unwrap()
+                    .segment_piston,
+                ))),
+                _ => Ok(None),
             })
-            .flat_map(|sens| match sens {
-                // gmt_lom::OpticalSensitivity::Wavefront(items) => items.,
-                OpticalSensitivity::TipTilt(items) => items
-                    .chunks(84)
-                    .map(|x| RowDVector::from_row_slice(x))
-                    .collect::<Vec<_>>(),
-                OpticalSensitivity::SegmentTipTilt(items) => items
-                    .chunks(84)
-                    .map(|x| RowDVector::from_row_slice(x))
-                    .collect::<Vec<_>>(),
-                OpticalSensitivity::SegmentPiston(items) => items
-                    .chunks(84)
-                    .map(|x| RowDVector::from_row_slice(x))
-                    .collect::<Vec<_>>(),
-                _ => vec![],
-            })
-            .collect();
-        Ok((!rows.is_empty()).then(|| DMatrix::<f64>::from_rows(rows.as_slice())))
+            .filter_map(|mat| mat.transpose())
+            .collect::<Result<Vec<_>, CliError>>()?;
+        Ok(lom.map(|_| {
+            let rows: Vec<_> = mats
+                .into_iter()
+                .flat_map(|mat| mat.row_iter().map(|r| r.into_owned()).collect::<Vec<_>>())
+                .collect();
+            DMatrix::<f64>::from_rows(&rows)
+        }))
     }
 }

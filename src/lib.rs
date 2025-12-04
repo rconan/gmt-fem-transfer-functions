@@ -38,3 +38,4 @@ impl TryFrom<&Cli> for structural::Structural {
         .build()?)
     }
 }
+
