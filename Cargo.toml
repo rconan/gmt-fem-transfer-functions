@@ -1,7 +1,11 @@
 [package]
 name = "gmt-fem-frequency-response"
 version = "0.1.0"
-authors = ["Rod Conan <rconan@gmto.org>", "Rodrigo Romano <rromano@gmto.org>"]
+authors = [
+  "Rod Conan <rconan@gmto.org>",
+  "Rodrigo Romano <rromano@gmto.org>",
+  "Christoph Dribusch <cdribusch@gmto.org>",
+]
 edition = "2024"
 default-run = "main"
 license = "MIT OR Apache-2.0"
@@ -20,7 +24,11 @@ gmt_dos-clients_fem = "5.2.0"
 indicatif = { version = "0.18.3", features = ["rayon"] }
 lz4_flex = "0.12.0"
 matio-rs = { version = "1.5.0", features = ["nalgebra"] }
-nalgebra = { version = "0.33.2", features = ["rayon", "serde", "serde-serialize"] }
+nalgebra = { version = "0.33.2", features = [
+  "rayon",
+  "serde",
+  "serde-serialize",
+] }
 num-complex = "0.4.6"
 rayon = "1.11.0"
 serde = { version = "1.0.228", features = ["derive"] }
@@ -31,9 +39,7 @@ thiserror = "2.0.17"
 gmt-fem-code-builder = "2.3.8"
 
 [lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = [
-    'cfg(fem)',
-] }
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fem)'] }
 
 [[bin]]
 name = "main"
