@@ -22,8 +22,6 @@ pub enum StructuralError {
     IO(#[from] std::io::Error),
     #[error("inputs and outputs do not match model in {0}")]
     IOMismatch(String),
-    #[error("failed to load linear optical model sensitivity matrices")]
-    LOM(#[from] gmt_lom::LinearOpticalModelError),
 }
 type Result<T> = std::result::Result<T, StructuralError>;
 

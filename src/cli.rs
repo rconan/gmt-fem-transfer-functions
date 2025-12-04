@@ -19,6 +19,12 @@ pub enum CliError {
     Lom,
 }
 
+/// Linear optical model
+///
+/// The linear optical model consists of 3 matrices
+/// transforming M1 and M2 rigid body motions into
+/// tip-tilt \[2\], segment tip-tilt \[14\] and
+/// segment piston \[7\]
 #[derive(Default, Debug, Serialize, Deserialize)]
 pub struct Lom {
     pub tip_tilt: Vec<f64>,
@@ -26,6 +32,7 @@ pub struct Lom {
     pub segment_piston: Vec<f64>,
 }
 impl Lom {
+    /// Creates a new [Lom] instance
     pub fn new() -> Result<Self, CliError> {
         let now = Instant::now();
         let buffer: &[u8] = include_bytes!("lom.lz4");
@@ -40,8 +47,15 @@ impl Lom {
     }
 }
 
-/// Command line interface
+/// GMT FEM transfer functions derivation
 #[derive(Parser)]
+#[command(
+    name = "gmt-fem-transfer-functions",
+    version,
+    author,
+    about,
+    next_help_heading = "FEM options"
+)]
 pub struct Cli {
     /// FEM inputs
     #[arg(short, long)]
@@ -103,6 +117,7 @@ impl Cli {
             })
             .collect()
     }
+    /// Loads, concatenates and returns the optical sensivity matrices
     pub fn lom_sensitivies(&self) -> Result<Option<DMatrix<f64>>, CliError> {
         let mut lom = Option::<Lom>::None;
         let mats: Vec<DMatrix<f64>> = self

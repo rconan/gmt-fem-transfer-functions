@@ -65,4 +65,6 @@ impl Outputs {{
         }
         Err(e) => println!("cargo::error={e}"),
     };
+    println!("cargo::rerun-if-env-changed=FEM_REPO");
+    println!("cargo::rerun-if-changed=build.rs");
 }
