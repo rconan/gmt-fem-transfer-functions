@@ -47,9 +47,9 @@ pub struct Structural {
     // outputs labels
     pub(crate) outputs: Vec<String>,
     // modal forces matrix
-    pub(crate) b: DMatrix<if64>,
+    pub(crate) b: DMatrix<f64>,
     // modal displacements matrix
-    pub(crate) c: DMatrix<if64>,
+    pub(crate) c: DMatrix<f64>,
     // static solution gain matrix
     pub(crate) g_ssol: Option<DMatrix<f64>>,
     // static gain mismatch compensation scheme
@@ -152,11 +152,11 @@ impl StructuralBuilder {
             .switch_inputs_by_name(self.built.inputs.clone(), Switch::On)?
             .switch_outputs(Switch::Off, None)
             .switch_outputs_by_name(self.built.outputs.clone(), Switch::On)?;
-        let b = DMatrix::<f64>::from_row_slice(fem.n_modes(), fem.n_inputs(), &fem.inputs2modes())
-            .map(|x| Complex::new(x, 0f64));
+        let b = DMatrix::<f64>::from_row_slice(fem.n_modes(), fem.n_inputs(), &fem.inputs2modes());
+        // .map(|x| Complex::new(x, 0f64));
         let c =
-            DMatrix::<f64>::from_row_slice(fem.n_outputs(), fem.n_modes(), &fem.modes2outputs())
-                .map(|x| Complex::new(x, 0f64));
+            DMatrix::<f64>::from_row_slice(fem.n_outputs(), fem.n_modes(), &fem.modes2outputs());
+        // .map(|x| Complex::new(x, 0f64));
         let g_ssol = fem.reduced_static_gain();
         let w = fem.eigen_frequencies_to_radians();
 
@@ -285,17 +285,29 @@ impl FrequencyResponse for Structural {
     /// *Dynamics and Control of Structures, W.K. Gawronsky*, p.17-18, Eqs.(2.21)-(2.22)
     fn j_omega(&self, jw: if64) -> Self::Output {
         let zeros = DMatrix::<Complex<f64>>::zeros(self.c.nrows(), self.b.ncols());
+        let mut cb = DMatrix::<f64>::zeros(self.c.nrows(), self.b.ncols());
+        let mut ccb = DMatrix::<if64>::zeros(self.c.nrows(), self.b.ncols());
+        // let mut cb_rt = 0;
+        // dbg!(cb.len());
+        // let now = Instant::now();
         let fr = self
             .c
             .column_iter()
             .zip(self.b.row_iter())
             .zip(&self.w)
             .fold(zeros, |a, ((c, b), wi)| {
-                let mut cb = c * b;
-                let ode = wi * wi + jw * jw + 2f64 * self.z * wi * jw;
-                cb /= ode;
-                a + cb
+                let ode = 1f64 / (wi * wi + jw * jw + 2f64 * self.z * wi * jw);
+                // let now = std::time::Instant::now();
+                // let cb = (c * b);
+                c.mul_to(&b, &mut cb);
+                // cb_rt += now.elapsed().as_micros();
+                // cb /= ode;
+                ccb.zip_apply(&cb, |l, r| *l = Complex::from(r) * ode);
+                a + &ccb //.map(|x| Complex::from(x) * ode)
             });
+        // eprintln!("<c*b> = {:.3}mus", cb_rt as f64 / self.c.ncols() as f64);
+        // eprintln!("fr = {:.3}ms", now.elapsed().as_millis());
+
         let fr = match &self.static_gain_mismatch {
             Some(StaticGainCompensation {
                 delay: None,
