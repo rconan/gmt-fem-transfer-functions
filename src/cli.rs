@@ -4,7 +4,12 @@ use std::{io, time::Instant};
 
 use crate::{Inputs, Outputs, frequency_response::Frequencies};
 use clap::Parser;
+#[cfg(feature = "faer")]
+use faer::{Mat, MatRef};
+#[cfg(feature = "nalgebra")]
 use nalgebra::DMatrix;
+#[cfg(feature = "faer")]
+use num_complex::Complex;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, thiserror::Error)]
@@ -118,6 +123,7 @@ impl Cli {
             .collect()
     }
     /// Loads, concatenates and returns the optical sensivity matrices
+    #[cfg(feature = "nalgebra")]
     pub fn lom_sensitivies(&self) -> Result<Option<DMatrix<f64>>, CliError> {
         let mut lom = Option::<Lom>::None;
         let mats: Vec<DMatrix<f64>> = self
@@ -176,6 +182,81 @@ impl Cli {
                 .flat_map(|mat| mat.row_iter().map(|r| r.into_owned()).collect::<Vec<_>>())
                 .collect();
             DMatrix::<f64>::from_rows(&rows)
+        }))
+    }
+    #[cfg(feature = "faer")]
+    pub fn lom_sensitivies(&self) -> Result<Option<Mat<Complex<f64>>>, CliError> {
+        let mut lom = Option::<Lom>::None;
+        let mats: Vec<Mat<f64>> = self
+            .outputs
+            .iter()
+            .map(|output| match output {
+                Outputs::TipTilt => Ok(Some(
+                    MatRef::<f64>::from_column_major_slice(
+                        &{
+                            if lom.is_none() {
+                                lom = Some(Lom::new()?);
+                                lom.as_ref()
+                            } else {
+                                lom.as_ref()
+                            }
+                        }
+                        .unwrap()
+                        .tip_tilt,
+                        2,
+                        84,
+                    )
+                    .to_owned(),
+                )),
+                Outputs::SegmentTipTilt => Ok(Some(
+                    MatRef::<f64>::from_column_major_slice(
+                        &{
+                            if lom.is_none() {
+                                lom = Some(Lom::new()?);
+                                lom.as_ref()
+                            } else {
+                                lom.as_ref()
+                            }
+                        }
+                        .unwrap()
+                        .segment_tip_tilt,
+                        14,
+                        84,
+                    )
+                    .to_owned(),
+                )),
+                Outputs::SegmentPiston => Ok(Some(
+                    MatRef::<f64>::from_column_major_slice(
+                        &{
+                            if lom.is_none() {
+                                lom = Some(Lom::new()?);
+                                lom.as_ref()
+                            } else {
+                                lom.as_ref()
+                            }
+                        }
+                        .unwrap()
+                        .segment_piston,
+                        7,
+                        84,
+                    )
+                    .to_owned(),
+                )),
+                _ => Ok(None),
+            })
+            .filter_map(|mat| mat.transpose())
+            .collect::<Result<Vec<_>, CliError>>()?;
+        Ok(lom.map(|_| {
+            let nrows: usize = mats.iter().map(|mat| mat.nrows()).sum();
+            let rows: Vec<_> = mats
+                .into_iter()
+                .flat_map(|mat| {
+                    mat.row_iter()
+                        .flat_map(|r| r.iter().map(|x| Complex::from(*x)).collect::<Vec<_>>())
+                        .collect::<Vec<_>>()
+                })
+                .collect();
+            MatRef::<Complex<f64>>::from_row_major_slice(&rows, nrows, 84).to_owned()
         }))
     }
 }

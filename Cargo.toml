@@ -18,18 +18,19 @@ repository = "https://github.com/rconan/gmt-fem-transfer-functions"
 anyhow = "1.0.100"
 bincode = { version = "2.0.1", features = ["serde"] }
 clap = { version = "4.5.53", features = ["derive"] }
+faer = { version = "0.23.2", features = ["serde"], optional = true }
 gmt-fem = "5.2.1"
 gmt-lom = { version = "2.6.2", optional = true }
 gmt_dos-clients_fem = "5.2.0"
 indicatif = { version = "0.18.3", features = ["rayon"] }
 lz4_flex = "0.12.0"
-matio-rs = { version = "1.6.0", features = ["nalgebra"] }
+matio-rs = { version = "1.6.1" }
 nalgebra = { version = "0.33.2", features = [
   "rayon",
   "serde",
   "serde-serialize",
-] }
-num-complex = "0.4.6"
+], optional = true }
+num-complex = { version = "0.4.6", features = ["serde"] }
 rayon = "1.11.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde-pickle = "1.2.0"
@@ -51,4 +52,14 @@ path = "src/bin/lom.rs"
 required-features = ["gmt-lom"]
 
 [features]
+# default = ["nalgebra"]
 gmt-lom = ["dep:gmt-lom"]
+faer = ["dep:faer", "matio-rs/faer"]
+nalgebra = ["dep:nalgebra", "matio-rs/nalgebra"]
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+
+[patch.crates-io]
+matio-rs = { path = "/home/rconan/projects/matio-rs" }

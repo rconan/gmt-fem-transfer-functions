@@ -2,8 +2,11 @@
 
 use std::{f64::consts, fmt::Display};
 
+#[cfg(feature = "faer")]
+use faer::{Mat, MatRef};
 use gmt_dos_clients_fem::{Model, Switch};
 use gmt_fem::FEM;
+#[cfg(feature = "nalgebra")]
 use nalgebra::{DMatrix, DMatrixView};
 use num_complex::Complex;
 use serde::{Deserialize, Serialize};
@@ -28,30 +31,45 @@ type Result<T> = std::result::Result<T, StructuralError>;
 #[derive(Debug, Deserialize, Serialize)]
 pub struct StaticGainCompensation {
     pub(crate) delay: Option<f64>,
+    #[cfg(feature = "nalgebra")]
     pub(crate) delta_gain: DMatrix<if64>,
+    #[cfg(feature = "faer")]
+    pub(crate) delta_gain: Mat<if64>,
 }
 impl Default for StaticGainCompensation {
     fn default() -> Self {
         Self {
             delay: Default::default(),
+            #[cfg(feature = "nalgebra")]
             delta_gain: DMatrix::<if64>::zeros(1, 1),
+            #[cfg(feature = "faer")]
+            delta_gain: Mat::<if64>::zeros(1, 1),
         }
     }
 }
 
 /// FEM structural dynamic model
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Structural {
     // inputs labels
     pub(crate) inputs: Vec<String>,
     // outputs labels
     pub(crate) outputs: Vec<String>,
     // modal forces matrix
+    #[cfg(feature = "nalgebra")]
     pub(crate) b: DMatrix<if64>,
+    #[cfg(feature = "faer")]
+    pub(crate) b: Mat<if64>,
     // modal displacements matrix
+    #[cfg(feature = "nalgebra")]
     pub(crate) c: DMatrix<if64>,
+    #[cfg(feature = "faer")]
+    pub(crate) c: Mat<if64>,
     // static solution gain matrix
+    #[cfg(feature = "nalgebra")]
     pub(crate) g_ssol: Option<DMatrix<f64>>,
+    #[cfg(feature = "faer")]
+    pub(crate) g_ssol: Option<Mat<f64>>,
     // static gain mismatch compensation scheme
     pub(crate) static_gain_mismatch: Option<StaticGainCompensation>,
     // eigen frequencies
@@ -59,7 +77,43 @@ pub struct Structural {
     // damping coefficient
     pub(crate) z: f64,
     // optical sensitivity matrix
+    #[cfg(feature = "nalgebra")]
     pub(crate) optical_senses: Option<DMatrix<f64>>,
+    #[cfg(feature = "faer")]
+    pub(crate) optical_senses: Option<Mat<Complex<f64>>>,
+}
+
+#[cfg(feature = "nalgebra")]
+impl Default for Structural {
+    fn default() -> Self {
+        Self {
+            inputs: Default::default(),
+            outputs: Default::default(),
+            b: Default::default(),
+            c: Default::default(),
+            g_ssol: Default::default(),
+            static_gain_mismatch: Default::default(),
+            w: Default::default(),
+            z: Default::default(),
+            optical_senses: Default::default(),
+        }
+    }
+}
+#[cfg(feature = "faer")]
+impl Default for Structural {
+    fn default() -> Self {
+        Self {
+            inputs: Default::default(),
+            outputs: Default::default(),
+            b: Mat::new(),
+            c: Mat::new(),
+            g_ssol: Default::default(),
+            static_gain_mismatch: Default::default(),
+            w: Default::default(),
+            z: Default::default(),
+            optical_senses: Default::default(),
+        }
+    }
 }
 
 /// FEM structural dynamic model builder
@@ -99,7 +153,14 @@ impl StructuralBuilder {
         self.file_name = file_name.into();
         self
     }
+    /// Sets the optical sensitivity matrix
+    #[cfg(feature = "nalgebra")]
     pub fn optical_sensitivities(mut self, mat: Option<DMatrix<f64>>) -> Self {
+        self.built.optical_senses = mat;
+        self
+    }
+    #[cfg(feature = "faer")]
+    pub fn optical_sensitivities(mut self, mat: Option<Mat<Complex<f64>>>) -> Self {
         self.built.optical_senses = mat;
         self
     }
@@ -152,12 +213,37 @@ impl StructuralBuilder {
             .switch_inputs_by_name(self.built.inputs.clone(), Switch::On)?
             .switch_outputs(Switch::Off, None)
             .switch_outputs_by_name(self.built.outputs.clone(), Switch::On)?;
+        #[cfg(feature = "nalgebra")]
         let b = DMatrix::<f64>::from_row_slice(fem.n_modes(), fem.n_inputs(), &fem.inputs2modes())
             .map(|x| Complex::new(x, 0f64));
+        #[cfg(feature = "faer")]
+        let b = MatRef::<Complex<f64>>::from_row_major_slice(
+            &fem.inputs2modes()
+                .into_iter()
+                .map(|x| Complex::new(x, 0f64))
+                .collect::<Vec<_>>(),
+            fem.n_modes(),
+            fem.n_inputs(),
+        )
+        .to_owned();
+        #[cfg(feature = "nalgebra")]
         let c =
             DMatrix::<f64>::from_row_slice(fem.n_outputs(), fem.n_modes(), &fem.modes2outputs())
                 .map(|x| Complex::new(x, 0f64));
+        #[cfg(feature = "faer")]
+        let c = MatRef::<Complex<f64>>::from_row_major_slice(
+            &fem.modes2outputs()
+                .into_iter()
+                .map(|x| Complex::new(x, 0f64))
+                .collect::<Vec<_>>(),
+            fem.n_outputs(),
+            fem.n_modes(),
+        )
+        .to_owned();
+        #[cfg(feature = "nalgebra")]
         let g_ssol = fem.reduced_static_gain();
+        #[cfg(feature = "faer")]
+        let g_ssol = None;
         let w = fem.eigen_frequencies_to_radians();
 
         // self.static_gain_mismatch.as_mut().map(|sgm| {
@@ -213,8 +299,14 @@ impl StructuralBuilder {
 
         Ok(if let Some((s, n)) = q {
             Structural {
+                #[cfg(feature = "nalgebra")]
                 b: b.rows(s, n).into_owned(),
+                #[cfg(feature = "faer")]
+                b: b.subrows(s, n).to_owned(),
+                #[cfg(feature = "nalgebra")]
                 c: c.columns(s, n).into_owned(),
+                #[cfg(feature = "faer")]
+                c: c.subcols(s, n).to_owned(),
                 g_ssol,
                 w: w[s..s + n].to_vec(),
                 ..self.built
@@ -242,12 +334,17 @@ impl Structural {
         StructuralBuilder::new(inputs, outputs)
     }
     /// Returns a [view](https://docs.rs/nalgebra/latest/nalgebra/base/struct.Matrix.html#method.view) of the static gain
+    #[cfg(feature = "nalgebra")]
     pub fn static_gain(
         &self,
         ij: (usize, usize),
         nm: (usize, usize),
     ) -> Option<DMatrixView<'_, f64>> {
         self.g_ssol.as_ref().map(|g| g.view(ij, nm))
+    }
+    #[cfg(feature = "faer")]
+    pub fn static_gain(&self, _ij: (usize, usize), _nm: (usize, usize)) -> Option<MatRef<'_, f64>> {
+        None
     }
     /// Returns the eigen frequencies in Hz
     pub fn eigen_frequencies_hz(&self) -> Vec<f64> {
@@ -279,6 +376,7 @@ impl Display for Structural {
     }
 }
 
+#[cfg(feature = "nalgebra")]
 impl FrequencyResponse for Structural {
     type Output = DMatrix<Complex<f64>>;
 
@@ -309,6 +407,45 @@ impl FrequencyResponse for Structural {
         };
         if let Some(mat) = self.optical_senses.as_ref() {
             mat.map(|x| Complex::from(x)) * fr
+        } else {
+            fr
+        }
+    }
+}
+
+#[cfg(feature = "faer")]
+impl FrequencyResponse for Structural {
+    type Output = Mat<Complex<f64>>;
+
+    /// *Dynamics and Control of Structures, W.K. Gawronsky*, p.17-18, Eqs.(2.21)-(2.22)
+    fn j_omega(&self, jw: if64) -> Self::Output {
+        let zeros = Mat::<Complex<f64>>::zeros(self.c.nrows(), self.b.ncols());
+        let fr =
+            self.c
+                .col_iter()
+                .zip(self.b.row_iter())
+                .zip(&self.w)
+                .fold(zeros, |a, ((c, b), wi)| {
+                    let mut cb = c * b;
+                    let ode = wi * wi + jw * jw + 2f64 * self.z * wi * jw;
+                    // cb /= ode;
+                    cb.col_iter_mut()
+                        .for_each(|col| col.iter_mut().for_each(|c| *c /= ode));
+                    a + cb
+                });
+        /* let fr = match &self.static_gain_mismatch {
+            Some(StaticGainCompensation {
+                delay: None,
+                delta_gain,
+            }) => fr + delta_gain,
+            Some(StaticGainCompensation {
+                delay: Some(t_s),
+                delta_gain,
+            }) => fr + (delta_gain * (-jw * t_s).exp()),
+            None => fr,
+        }; */
+        if let Some(mat) = self.optical_senses.as_ref() {
+            mat * fr
         } else {
             fr
         }
