@@ -376,6 +376,7 @@ impl Display for Structural {
     }
 }
 
+use std::time::Instant;
 #[cfg(feature = "nalgebra")]
 impl FrequencyResponse for Structural {
     type Output = DMatrix<Complex<f64>>;
@@ -383,17 +384,21 @@ impl FrequencyResponse for Structural {
     /// *Dynamics and Control of Structures, W.K. Gawronsky*, p.17-18, Eqs.(2.21)-(2.22)
     fn j_omega(&self, jw: if64) -> Self::Output {
         let zeros = DMatrix::<Complex<f64>>::zeros(self.c.nrows(), self.b.ncols());
+        let mut cb_rt = 0;
         let fr = self
             .c
             .column_iter()
             .zip(self.b.row_iter())
             .zip(&self.w)
             .fold(zeros, |a, ((c, b), wi)| {
+                let now = Instant::now();
                 let mut cb = c * b;
+                cb_rt += now.elapsed().as_micros();
                 let ode = wi * wi + jw * jw + 2f64 * self.z * wi * jw;
                 cb /= ode;
                 a + cb
             });
+        eprintln!("<c*b> = {:.3}mus", cb_rt as f64 / self.c.ncols() as f64);
         let fr = match &self.static_gain_mismatch {
             Some(StaticGainCompensation {
                 delay: None,
@@ -412,27 +417,48 @@ impl FrequencyResponse for Structural {
         }
     }
 }
-
 #[cfg(feature = "faer")]
 impl FrequencyResponse for Structural {
     type Output = Mat<Complex<f64>>;
 
     /// *Dynamics and Control of Structures, W.K. Gawronsky*, p.17-18, Eqs.(2.21)-(2.22)
     fn j_omega(&self, jw: if64) -> Self::Output {
-        let zeros = Mat::<Complex<f64>>::zeros(self.c.nrows(), self.b.ncols());
-        let fr =
-            self.c
-                .col_iter()
-                .zip(self.b.row_iter())
-                .zip(&self.w)
-                .fold(zeros, |a, ((c, b), wi)| {
-                    let mut cb = c * b;
-                    let ode = wi * wi + jw * jw + 2f64 * self.z * wi * jw;
-                    // cb /= ode;
-                    cb.col_iter_mut()
-                        .for_each(|col| col.iter_mut().for_each(|c| *c /= ode));
-                    a + cb
-                });
+        use faer::{Accum,  diag::DiagRef, linalg::matmul::matmul,get_global_parallelism};
+        let mut fr= Mat::<Complex<f64>>::zeros(self.c.nrows(), self.b.ncols());
+        let mut cb_rt = 0;
+        let rode: Vec<_> = self
+            .w
+            .iter()
+            .map(|wi| wi * wi + jw * jw + 2f64 * self.z * wi * jw)
+            .map(|ode| 1f64 / ode)
+            .collect();
+        let d = DiagRef::from_slice(&rode);
+        // let n = rode.len();
+        // let d = Mat::from_fn(n, n, |i, j| if i == j { rode[i] } else { Complex::ZERO });
+        let now = Instant::now();
+        // let q = &self.c * d;
+        // let q = q * &self.b;
+        // let q = d * &self.b;
+        // let fr = &self.c * fr;
+        matmul(&mut fr, Accum::Replace, &self.c, d * &self.b, 1f64.into(), get_global_parallelism());
+        cb_rt += now.elapsed().as_millis();
+        // matmul(&mut zeros, Accum::Replace, d.as_mat(), &self.b, 1f64.into(), Par::Seq);
+        /* let fr =
+        self.c
+            .col_iter()
+            .zip(self.b.row_iter())
+            .zip(&self.w)
+            .fold(zeros, |a, ((c, b), wi)| {
+                let now = Instant::now();
+                let mut cb = c * b;
+                cb_rt += now.elapsed().as_micros();
+                let ode = wi * wi + jw * jw + 2f64 * self.z * wi * jw;
+                // cb /= ode;
+                cb.col_iter_mut()
+                    .for_each(|col| col.iter_mut().for_each(|c| *c /= ode));
+                a + cb
+            }); */
+        eprintln!("<c*b> = {:.3}ms", cb_rt as f64); // / self.c.ncols() as f64);
         /* let fr = match &self.static_gain_mismatch {
             Some(StaticGainCompensation {
                 delay: None,

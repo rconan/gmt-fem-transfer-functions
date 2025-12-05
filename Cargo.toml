@@ -32,6 +32,7 @@ nalgebra = { version = "0.33.2", features = [
 ], optional = true }
 num-complex = { version = "0.4.6", features = ["serde"] }
 rayon = "1.11.0"
+reborrow = "0.5.5"
 serde = { version = "1.0.228", features = ["derive"] }
 serde-pickle = "1.2.0"
 thiserror = "2.0.17"
