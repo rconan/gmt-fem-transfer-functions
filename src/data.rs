@@ -244,30 +244,26 @@ impl TransferFunctionData {
         let now = Instant::now();
         match path.as_ref().extension() {
             Some(ext) if ext == "pkl" => {
-                let file = File::create(&path)?;
-                let mut buffer = BufWriter::new(file);
-                serde_pickle::to_writer(&mut buffer, &self, Default::default())?;
-            }
-            #[cfg(feature = "nalgebra")]
-            Some(ext) if ext == "mat" => self.dump_to_mat(&path)?,
-            #[cfg(feature = "faer")]
-            Some(ext) if ext == "mat" => unimplemented!(),
-            Some(ext) => {
-                return Err(TransferFunctionDataError::DataFileExtension(
-                    ext.to_string_lossy().into_owned(),
-                ));
-            }
-            None => return Err(TransferFunctionDataError::MissingFileExtension),
-        };
-        println!(
-            "Frequency response written to {} in {}ms",
-            path.as_ref().display(),
-            now.elapsed().as_millis()
-        );
-        Ok(())
+                 let file = File::create(&path)?;
+                 let mut buffer = BufWriter::new(file);
+                 serde_pickle::to_writer(&mut buffer, &self, Default::default())?;
+             }
+             Some(ext) if ext == "mat" => self.dump_to_mat(&path)?,
+             Some(ext) => {
+                 return Err(TransferFunctionDataError::DataFileExtension(
+                     ext.to_string_lossy().into_owned(),
+                 ));
+             }
+             None => return Err(TransferFunctionDataError::MissingFileExtension),
+         };
+         println!(
+             "Frequency response written to {} in {}ms",
+             path.as_ref().display(),
+             now.elapsed().as_millis()
+         );
+         Ok(())
     }
 
-    #[cfg(feature = "nalgebra")]
     pub fn dump_to_mat(self, path: impl AsRef<Path>) -> Result<()> {
         use matio_rs::{Mat, MatFile, MayBeFrom};
         let mut fields = vec![
@@ -281,8 +277,8 @@ impl TransferFunctionData {
         for r in self.frequency_response.iter() {
             let data_fields = vec![
                 Mat::maybe_from("frequency", r.frequency)?,
-                Mat::maybe_from("magnitude", r.magnitude.clone())?,
-                Mat::maybe_from("phase", r.phase.clone())?,
+                Mat::maybe_from("magnitude", &r.magnitude)?,
+                Mat::maybe_from("phase", &r.phase)?,
             ];
             data.push(Mat::maybe_from("data", data_fields)?);
         }
