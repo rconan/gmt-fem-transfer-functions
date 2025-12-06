@@ -57,12 +57,12 @@ pub struct Structural {
     pub(crate) outputs: Vec<String>,
     // modal forces matrix
     #[cfg(feature = "nalgebra")]
-    pub(crate) b: DMatrix<if64>,
+    pub(crate) b: DMatrix<f64>,
     #[cfg(feature = "faer")]
     pub(crate) b: Mat<if64>,
     // modal displacements matrix
     #[cfg(feature = "nalgebra")]
-    pub(crate) c: DMatrix<if64>,
+    pub(crate) c: DMatrix<f64>,
     #[cfg(feature = "faer")]
     pub(crate) c: Mat<if64>,
     // static solution gain matrix
@@ -214,8 +214,7 @@ impl StructuralBuilder {
             .switch_outputs(Switch::Off, None)
             .switch_outputs_by_name(self.built.outputs.clone(), Switch::On)?;
         #[cfg(feature = "nalgebra")]
-        let b = DMatrix::<f64>::from_row_slice(fem.n_modes(), fem.n_inputs(), &fem.inputs2modes())
-            .map(|x| Complex::new(x, 0f64));
+        let b = DMatrix::<f64>::from_row_slice(fem.n_modes(), fem.n_inputs(), &fem.inputs2modes());
         #[cfg(feature = "faer")]
         let b = MatRef::<Complex<f64>>::from_row_major_slice(
             &fem.inputs2modes()
@@ -228,8 +227,7 @@ impl StructuralBuilder {
         .to_owned();
         #[cfg(feature = "nalgebra")]
         let c =
-            DMatrix::<f64>::from_row_slice(fem.n_outputs(), fem.n_modes(), &fem.modes2outputs())
-                .map(|x| Complex::new(x, 0f64));
+            DMatrix::<f64>::from_row_slice(fem.n_outputs(), fem.n_modes(), &fem.modes2outputs());
         #[cfg(feature = "faer")]
         let c = MatRef::<Complex<f64>>::from_row_major_slice(
             &fem.modes2outputs()
@@ -376,7 +374,6 @@ impl Display for Structural {
     }
 }
 
-use std::time::Instant;
 #[cfg(feature = "nalgebra")]
 impl FrequencyResponse for Structural {
     type Output = DMatrix<Complex<f64>>;
@@ -384,21 +381,24 @@ impl FrequencyResponse for Structural {
     /// *Dynamics and Control of Structures, W.K. Gawronsky*, p.17-18, Eqs.(2.21)-(2.22)
     fn j_omega(&self, jw: if64) -> Self::Output {
         let zeros = DMatrix::<Complex<f64>>::zeros(self.c.nrows(), self.b.ncols());
-        let mut cb_rt = 0;
+        let mut cb = DMatrix::<f64>::zeros(self.c.nrows(), self.b.ncols());
+        let mut ccb = DMatrix::<if64>::zeros(self.c.nrows(), self.b.ncols());
         let fr = self
             .c
             .column_iter()
             .zip(self.b.row_iter())
             .zip(&self.w)
             .fold(zeros, |a, ((c, b), wi)| {
-                let now = Instant::now();
-                let mut cb = c * b;
-                cb_rt += now.elapsed().as_micros();
-                let ode = wi * wi + jw * jw + 2f64 * self.z * wi * jw;
-                cb /= ode;
-                a + cb
+                let ode = 1f64 / (wi * wi + jw * jw + 2f64 * self.z * wi * jw);
+                // let now = std::time::Instant::now();
+                // let cb = (c * b);
+                c.mul_to(&b, &mut cb);
+                // cb_rt += now.elapsed().as_micros();
+                // cb /= ode;
+                ccb.zip_apply(&cb, |l, r| *l = Complex::from(r) * ode);
+                a + &ccb //.map(|x| Complex::from(x) * ode)
             });
-        eprintln!("<c*b> = {:.3}mus", cb_rt as f64 / self.c.ncols() as f64);
+
         let fr = match &self.static_gain_mismatch {
             Some(StaticGainCompensation {
                 delay: None,
@@ -423,9 +423,8 @@ impl FrequencyResponse for Structural {
 
     /// *Dynamics and Control of Structures, W.K. Gawronsky*, p.17-18, Eqs.(2.21)-(2.22)
     fn j_omega(&self, jw: if64) -> Self::Output {
-        use faer::{Accum,  diag::DiagRef, linalg::matmul::matmul,get_global_parallelism};
-        let mut fr= Mat::<Complex<f64>>::zeros(self.c.nrows(), self.b.ncols());
-        let mut cb_rt = 0;
+        use faer::{Accum, diag::DiagRef, get_global_parallelism, linalg::matmul::matmul};
+        let mut fr = Mat::<Complex<f64>>::zeros(self.c.nrows(), self.b.ncols());
         let rode: Vec<_> = self
             .w
             .iter()
@@ -433,43 +432,25 @@ impl FrequencyResponse for Structural {
             .map(|ode| 1f64 / ode)
             .collect();
         let d = DiagRef::from_slice(&rode);
-        // let n = rode.len();
-        // let d = Mat::from_fn(n, n, |i, j| if i == j { rode[i] } else { Complex::ZERO });
-        let now = Instant::now();
-        // let q = &self.c * d;
-        // let q = q * &self.b;
-        // let q = d * &self.b;
-        // let fr = &self.c * fr;
-        matmul(&mut fr, Accum::Replace, &self.c, d * &self.b, 1f64.into(), get_global_parallelism());
-        cb_rt += now.elapsed().as_millis();
-        // matmul(&mut zeros, Accum::Replace, d.as_mat(), &self.b, 1f64.into(), Par::Seq);
-        /* let fr =
-        self.c
-            .col_iter()
-            .zip(self.b.row_iter())
-            .zip(&self.w)
-            .fold(zeros, |a, ((c, b), wi)| {
-                let now = Instant::now();
-                let mut cb = c * b;
-                cb_rt += now.elapsed().as_micros();
-                let ode = wi * wi + jw * jw + 2f64 * self.z * wi * jw;
-                // cb /= ode;
-                cb.col_iter_mut()
-                    .for_each(|col| col.iter_mut().for_each(|c| *c /= ode));
-                a + cb
-            }); */
-        eprintln!("<c*b> = {:.3}ms", cb_rt as f64); // / self.c.ncols() as f64);
-        /* let fr = match &self.static_gain_mismatch {
-            Some(StaticGainCompensation {
-                delay: None,
-                delta_gain,
-            }) => fr + delta_gain,
-            Some(StaticGainCompensation {
-                delay: Some(t_s),
-                delta_gain,
-            }) => fr + (delta_gain * (-jw * t_s).exp()),
-            None => fr,
-        }; */
+        matmul(
+            &mut fr,
+            Accum::Replace,
+            &self.c,
+            d * &self.b,
+            1f64.into(),
+            get_global_parallelism(),
+        );
+        // let fr = match &self.static_gain_mismatch {
+        //     Some(StaticGainCompensation {
+        //         delay: None,
+        //         delta_gain,
+        //     }) => fr + delta_gain,
+        //     Some(StaticGainCompensation {
+        //         delay: Some(t_s),
+        //         delta_gain,
+        //     }) => fr + (delta_gain * (-jw * t_s).exp()),
+        //     None => fr,
+        // };
         if let Some(mat) = self.optical_senses.as_ref() {
             mat * fr
         } else {
