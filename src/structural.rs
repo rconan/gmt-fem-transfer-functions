@@ -8,10 +8,9 @@ use gmt_dos_clients_fem::{Model, Switch};
 use gmt_fem::FEM;
 #[cfg(feature = "nalgebra")]
 use nalgebra::{DMatrix, DMatrixView};
-use num_complex::Complex;
 use serde::{Deserialize, Serialize};
 
-use crate::frequency_response::{FrequencyResponse, if64};
+use crate::{frequency_response::FrequencyResponse, if64};
 
 #[derive(Debug, thiserror::Error)]
 pub enum StructuralError {
@@ -80,7 +79,7 @@ pub struct Structural {
     #[cfg(feature = "nalgebra")]
     pub(crate) optical_senses: Option<DMatrix<f64>>,
     #[cfg(feature = "faer")]
-    pub(crate) optical_senses: Option<Mat<Complex<f64>>>,
+    pub(crate) optical_senses: Option<Mat<if64>>,
 }
 
 #[cfg(feature = "nalgebra")]
@@ -160,7 +159,7 @@ impl StructuralBuilder {
         self
     }
     #[cfg(feature = "faer")]
-    pub fn optical_sensitivities(mut self, mat: Option<Mat<Complex<f64>>>) -> Self {
+    pub fn optical_sensitivities(mut self, mat: Option<Mat<if64>>) -> Self {
         self.built.optical_senses = mat;
         self
     }
@@ -216,10 +215,10 @@ impl StructuralBuilder {
         #[cfg(feature = "nalgebra")]
         let b = DMatrix::<f64>::from_row_slice(fem.n_modes(), fem.n_inputs(), &fem.inputs2modes());
         #[cfg(feature = "faer")]
-        let b = MatRef::<Complex<f64>>::from_row_major_slice(
+        let b = MatRef::<if64>::from_row_major_slice(
             &fem.inputs2modes()
                 .into_iter()
-                .map(|x| Complex::new(x, 0f64))
+                .map(|x| if64::new(x, 0f64))
                 .collect::<Vec<_>>(),
             fem.n_modes(),
             fem.n_inputs(),
@@ -229,10 +228,10 @@ impl StructuralBuilder {
         let c =
             DMatrix::<f64>::from_row_slice(fem.n_outputs(), fem.n_modes(), &fem.modes2outputs());
         #[cfg(feature = "faer")]
-        let c = MatRef::<Complex<f64>>::from_row_major_slice(
+        let c = MatRef::<if64>::from_row_major_slice(
             &fem.modes2outputs()
                 .into_iter()
-                .map(|x| Complex::new(x, 0f64))
+                .map(|x| if64::new(x, 0f64))
                 .collect::<Vec<_>>(),
             fem.n_outputs(),
             fem.n_modes(),
@@ -247,7 +246,7 @@ impl StructuralBuilder {
         // self.static_gain_mismatch.as_mut().map(|sgm| {
         //     let g_dsol = fem.static_gain();
         //     let delta_g = g_ssol.as_ref().expect("failed to get FEM static gain") - g_dsol;
-        //     sgm.delta_gain = delta_g.map(|x| Complex::new(x, 0f64));
+        //     sgm.delta_gain = delta_g.map(|x| if64::new(x, 0f64));
         // });
 
         let q = match (self.min_eigen_frequency, self.max_eigen_frequency) {
@@ -376,11 +375,11 @@ impl Display for Structural {
 
 #[cfg(feature = "nalgebra")]
 impl FrequencyResponse for Structural {
-    type Output = DMatrix<Complex<f64>>;
+    type Output = DMatrix<if64>;
 
     /// *Dynamics and Control of Structures, W.K. Gawronsky*, p.17-18, Eqs.(2.21)-(2.22)
     fn j_omega(&self, jw: if64) -> Self::Output {
-        let zeros = DMatrix::<Complex<f64>>::zeros(self.c.nrows(), self.b.ncols());
+        let zeros = DMatrix::<if64>::zeros(self.c.nrows(), self.b.ncols());
         let mut cb = DMatrix::<f64>::zeros(self.c.nrows(), self.b.ncols());
         let mut ccb = DMatrix::<if64>::zeros(self.c.nrows(), self.b.ncols());
         let fr = self
@@ -395,8 +394,8 @@ impl FrequencyResponse for Structural {
                 c.mul_to(&b, &mut cb);
                 // cb_rt += now.elapsed().as_micros();
                 // cb /= ode;
-                ccb.zip_apply(&cb, |l, r| *l = Complex::from(r) * ode);
-                a + &ccb //.map(|x| Complex::from(x) * ode)
+                ccb.zip_apply(&cb, |l, r| *l = if64::from(r) * ode);
+                a + &ccb //.map(|x| if64::from(x) * ode)
             });
 
         let fr = match &self.static_gain_mismatch {
@@ -411,7 +410,7 @@ impl FrequencyResponse for Structural {
             None => fr,
         };
         if let Some(mat) = self.optical_senses.as_ref() {
-            mat.map(|x| Complex::from(x)) * fr
+            mat.map(|x| if64::from(x)) * fr
         } else {
             fr
         }
@@ -419,12 +418,12 @@ impl FrequencyResponse for Structural {
 }
 #[cfg(feature = "faer")]
 impl FrequencyResponse for Structural {
-    type Output = Mat<Complex<f64>>;
+    type Output = Mat<if64>;
 
     /// *Dynamics and Control of Structures, W.K. Gawronsky*, p.17-18, Eqs.(2.21)-(2.22)
     fn j_omega(&self, jw: if64) -> Self::Output {
         use faer::{Accum, diag::DiagRef, get_global_parallelism, linalg::matmul::matmul};
-        let mut fr = Mat::<Complex<f64>>::zeros(self.c.nrows(), self.b.ncols());
+        let mut fr = Mat::<if64>::zeros(self.c.nrows(), self.b.ncols());
         let rode: Vec<_> = self
             .w
             .iter()

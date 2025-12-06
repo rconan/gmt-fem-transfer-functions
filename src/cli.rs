@@ -2,14 +2,14 @@
 
 use std::{io, time::Instant};
 
+#[cfg(feature = "faer")]
+use crate::if64;
 use crate::{Inputs, Outputs, frequency_response::Frequencies};
 use clap::Parser;
 #[cfg(feature = "faer")]
 use faer::{Mat, MatRef};
 #[cfg(feature = "nalgebra")]
 use nalgebra::DMatrix;
-#[cfg(feature = "faer")]
-use num_complex::Complex;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, thiserror::Error)]
@@ -185,7 +185,7 @@ impl Cli {
         }))
     }
     #[cfg(feature = "faer")]
-    pub fn lom_sensitivies(&self) -> Result<Option<Mat<Complex<f64>>>, CliError> {
+    pub fn lom_sensitivies(&self) -> Result<Option<Mat<if64>>, CliError> {
         let mut lom = Option::<Lom>::None;
         let mats: Vec<Mat<f64>> = self
             .outputs
@@ -252,11 +252,11 @@ impl Cli {
                 .into_iter()
                 .flat_map(|mat| {
                     mat.row_iter()
-                        .flat_map(|r| r.iter().map(|x| Complex::from(*x)).collect::<Vec<_>>())
+                        .flat_map(|r| r.iter().map(|x| if64::from(*x)).collect::<Vec<_>>())
                         .collect::<Vec<_>>()
                 })
                 .collect();
-            MatRef::<Complex<f64>>::from_row_major_slice(&rows, nrows, 84).to_owned()
+            MatRef::<if64>::from_row_major_slice(&rows, nrows, 84).to_owned()
         }))
     }
 }

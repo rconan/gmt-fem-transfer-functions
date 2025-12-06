@@ -1,16 +1,15 @@
 //! Frequency response functionalities
 
 use indicatif::{ParallelProgressIterator, ProgressStyle};
-use num_complex::Complex;
 use rayon::prelude::*;
 use std::{f64::consts::PI, ops::Mul};
 
-use crate::data::{Cartesian2Polar, FrequencyResponseData, FrequencyResponseVec};
+use crate::{
+    data::{Cartesian2Polar, FrequencyResponseData, FrequencyResponseVec},
+    if64,
+};
 
 const DPI: f64 = 2f64 * PI;
-
-#[allow(non_camel_case_types)]
-pub type if64 = Complex<f64>;
 
 /// Frequency sampling options
 ///
@@ -102,7 +101,7 @@ pub trait FrequencyResponse {
             .progress_chars("-.-");
         let data = match frequencies {
             Frequencies::Single { value: nu } => {
-                let jw = Complex::new(0f64, DPI * nu);
+                let jw = if64::new(0f64, DPI * nu);
                 vec![FrequencyResponseData::new(nu, self.j_omega(jw))]
             }
             Frequencies::LogSpace { lower, upper, n } => {
@@ -114,7 +113,7 @@ pub trait FrequencyResponse {
                     .map(|i| {
                         let log_nu = lower.log10() + log_step * i as f64;
                         let nu = 10f64.powf(log_nu);
-                        let jw = Complex::new(0f64, DPI * nu);
+                        let jw = if64::new(0f64, DPI * nu);
                         FrequencyResponseData::new(nu, self.j_omega(jw))
                     })
                     .collect()
@@ -127,7 +126,7 @@ pub trait FrequencyResponse {
                     .progress_with_style(style)
                     .map(|i| {
                         let nu = lower + step * i as f64;
-                        let jw = Complex::new(0f64, DPI * nu);
+                        let jw = if64::new(0f64, DPI * nu);
                         FrequencyResponseData::new(nu, self.j_omega(jw))
                     })
                     .collect()
@@ -136,7 +135,7 @@ pub trait FrequencyResponse {
                 .into_par_iter()
                 .progress_with_style(style)
                 .map(|nu| {
-                    let jw = Complex::new(0f64, DPI * nu);
+                    let jw = if64::new(0f64, DPI * nu);
                     FrequencyResponseData::new(nu, self.j_omega(jw))
                 })
                 .collect(),
@@ -144,23 +143,20 @@ pub trait FrequencyResponse {
         FrequencyResponseVec::new(data)
     }
     /// Returns the first derivation of the frequency response
-    fn j_omega_first(
-        &self,
-        jw: if64,
-    ) -> <<Self as FrequencyResponse>::Output as Mul<Complex<f64>>>::Output
+    fn j_omega_first(&self, jw: if64) -> <<Self as FrequencyResponse>::Output as Mul<if64>>::Output
     where
         <Self as FrequencyResponse>::Output: Mul<if64>,
     {
         self.j_omega(jw) * jw
     }
     /// Returns the second derivation of the frequency response
-     fn j_omega_second(
+    fn j_omega_second(
         &self,
         jw: if64,
-    ) -> <<<Self as FrequencyResponse>::Output as Mul<Complex<f64>>>::Output as Mul<Complex<f64>>>::Output
+    ) -> <<<Self as FrequencyResponse>::Output as Mul<if64>>::Output as Mul<if64>>::Output
     where
         <Self as FrequencyResponse>::Output: Mul<if64>,
-        <<Self as FrequencyResponse>::Output as Mul<Complex<f64>>>::Output: Mul<Complex<f64>>,
+        <<Self as FrequencyResponse>::Output as Mul<if64>>::Output: Mul<if64>,
     {
         self.j_omega_first(jw) * jw
     }
@@ -211,7 +207,7 @@ impl FrequencyResponse for BesselFilter {
             .beta
             .iter()
             .enumerate()
-            .fold(Complex::new(0f64, 0f64), |a, (i, b)| {
+            .fold(if64::new(0f64, 0f64), |a, (i, b)| {
                 a + b * self.w_bf.powi(4 - i as i32) * jw.powi(i as i32)
             });
         num / denom

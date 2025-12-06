@@ -4,13 +4,13 @@
 use faer::Mat;
 #[cfg(feature = "nalgebra")]
 use nalgebra::{ComplexField, DMatrix};
-use num_complex::Complex;
 use serde::Serialize;
 use std::io::BufWriter;
 use std::time::Instant;
 use std::{env, f64, fmt::Display, fs::File, io, ops::Deref, path::Path};
 
 use crate::{cli::Cli, structural::Structural};
+use crate::if64;
 
 #[derive(Debug, thiserror::Error)]
 pub enum TransferFunctionDataError {
@@ -67,7 +67,7 @@ pub trait Cartesian2Polar {
 }
 
 #[cfg(feature = "faer")]
-impl Cartesian2Polar for Mat<Complex<f64>> {
+impl Cartesian2Polar for Mat<if64> {
     type Output = Mat<f64>;
 
     fn magnitude(&self) -> Self::Output {
@@ -88,7 +88,7 @@ impl Cartesian2Polar for Mat<Complex<f64>> {
 }
 
 #[cfg(feature = "nalgebra")]
-impl Cartesian2Polar for DMatrix<Complex<f64>> {
+impl Cartesian2Polar for DMatrix<if64> {
     type Output = DMatrix<f64>;
 
     fn magnitude(&self) -> Self::Output {
@@ -100,7 +100,7 @@ impl Cartesian2Polar for DMatrix<Complex<f64>> {
     }
 }
 
-impl Cartesian2Polar for Complex<f64> {
+impl Cartesian2Polar for if64 {
     type Output = f64;
 
     fn magnitude(&self) -> Self::Output {
@@ -212,9 +212,9 @@ pub struct TransferFunctionData {
     modal_damping_coefficient: f64,
     fem_eigen_frequency_range: (f64, f64),
     #[cfg(feature = "nalgebra")]
-    frequency_response: FrequencyResponseVec<DMatrix<Complex<f64>>>,
+    frequency_response: FrequencyResponseVec<DMatrix<if64>>,
     #[cfg(feature = "faer")]
-    frequency_response: FrequencyResponseVec<Mat<Complex<f64>>>,
+    frequency_response: FrequencyResponseVec<Mat<if64>>,
 }
 
 impl From<&Cli> for TransferFunctionData {
@@ -297,7 +297,7 @@ impl TransferFunctionData {
     #[cfg(feature = "nalgebra")]
     pub fn add_response(
         self,
-        frequency_response: FrequencyResponseVec<DMatrix<Complex<f64>>>,
+        frequency_response: FrequencyResponseVec<DMatrix<if64>>,
     ) -> Self {
         Self {
             frequency_response,
@@ -305,7 +305,7 @@ impl TransferFunctionData {
         }
     }
     #[cfg(feature = "faer")]
-    pub fn add_response(self, frequency_response: FrequencyResponseVec<Mat<Complex<f64>>>) -> Self {
+    pub fn add_response(self, frequency_response: FrequencyResponseVec<Mat<if64>>) -> Self {
         Self {
             frequency_response,
             ..self
