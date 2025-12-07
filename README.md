@@ -41,7 +41,7 @@ FEM_REPO=<path-to-FEM> gmt-fem-frequency-response -i oss-harpoint-delta-f -o seg
 ```
 
 An optimized version that uses memory preallocation to speed up the computations is avaible in the `optim` branch of the git repository.
-The linear algebra library need to ne specified via features.
+The linear algebra library need to be specified via features.
 The feature can be either `nalgebra` or [`faer`](https://faer.veganb.tw/).
 `faer` is the fastest feature providing a speed-up of up to 2 orders of magnitude whereas `nalgebra` is about 50% faster.
 Both will allocate more memory that the version on the `main` branch, `faer` is the `optim` feature that will require significantely more memory.
