@@ -48,11 +48,11 @@ Both will allocate more memory that the version on the `main` branch, `faer` is 
 
 The optimized `nalgebra` version is installed with
 ```shell
-FEM_REPO=<path-to-FEM> cargo install --features nalgebra --git https://github.com/rconan/gmt-fem-transfer-functions.git --branch optim --bin gmt-fem-frequency-response
+FEM_REPO=<path-to-FEM> cargo install --locked --features nalgebra --git https://github.com/rconan/gmt-fem-transfer-functions.git --branch optim --bin gmt-fem-frequency-response
 ```
 and the optimized `faer` version is installed with
 ```shell
-FEM_REPO=<path-to-FEM> cargo install --features faer --git https://github.com/rconan/gmt-fem-transfer-functions.git --branch optim --bin gmt-fem-frequency-response
+FEM_REPO=<path-to-FEM> cargo install --locked --features faer --git https://github.com/rconan/gmt-fem-transfer-functions.git --branch optim --bin gmt-fem-frequency-response
 ```
 
 
