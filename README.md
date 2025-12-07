@@ -40,3 +40,19 @@ The binary is installed locally and the CLI app is called simply by invoking `gm
 FEM_REPO=<path-to-FEM> gmt-fem-frequency-response -i oss-harpoint-delta-f -o segment-tip-tilt -f m1-hp_segment-tt.mat log-space -l 0.01 -u 100 -n 1000
 ```
 
+An optimized version that uses memory preallocation to speed up the computations is avaible in the `optim` branch of the git repository.
+The linear algebra library need to ne specified via features.
+The feature can be either `nalgebra` or [`faer`](https://faer.veganb.tw/).
+`faer` is the fastest feature providing a speed-up of up to 2 orders of magnitude whereas `nalgebra` is about 50% faster.
+Both will allocate more memory that the version on the `main` branch, `faer` is the `optim` feature that will require significantely more memory.
+
+The optimized `nalgebra` version is installed with
+```shell
+FEM_REPO=<path-to-FEM> cargo install --features nalgebra --git https://github.com/rconan/gmt-fem-transfer-functions.git --branch optim --bin gmt-fem-frequency-response
+```
+and the optimized `faer` version is installed with
+```shell
+FEM_REPO=<path-to-FEM> cargo install --features faer --git https://github.com/rconan/gmt-fem-transfer-functions.git --branch optim --bin gmt-fem-frequency-response
+```
+
+
