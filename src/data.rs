@@ -2,6 +2,8 @@
 
 use nalgebra::{Complex, ComplexField, DMatrix};
 use serde::Serialize;
+use std::io::BufWriter;
+use std::time::Instant;
 use std::{env, f64, fmt::Display, fs::File, io, ops::Deref, path::Path};
 
 use crate::{cli::Cli, structural::Structural};
@@ -196,18 +198,27 @@ impl TransferFunctionData {
     ///
     /// The file extension, "pkl" or "mat", sets the file type
     pub fn dump(self, path: impl AsRef<Path>) -> Result<()> {
+        let now = Instant::now();
         match path.as_ref().extension() {
             Some(ext) if ext == "pkl" => {
-                let mut file = File::create(path)?;
-                serde_pickle::to_writer(&mut file, &self, Default::default())?;
-                Ok(())
+                let file = File::create(&path)?;
+                let mut buffer = BufWriter::new(file);
+                serde_pickle::to_writer(&mut buffer, &self, Default::default())?;
             }
-            Some(ext) if ext == "mat" => self.dump_to_mat(path),
-            Some(ext) => Err(TransferFunctionDataError::DataFileExtension(
-                ext.to_string_lossy().into_owned(),
-            )),
-            None => Err(TransferFunctionDataError::MissingFileExtension),
-        }
+            Some(ext) if ext == "mat" => self.dump_to_mat(&path)?,
+            Some(ext) => {
+                return Err(TransferFunctionDataError::DataFileExtension(
+                    ext.to_string_lossy().into_owned(),
+                ));
+            }
+            None => return Err(TransferFunctionDataError::MissingFileExtension),
+        };
+        println!(
+            "Frequency response written to {} in {}ms",
+            path.as_ref().display(),
+            now.elapsed().as_millis()
+        );
+        Ok(())
     }
 
     pub fn dump_to_mat(self, path: impl AsRef<Path>) -> Result<()> {
