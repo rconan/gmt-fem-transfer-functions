@@ -12,7 +12,12 @@ fn main() -> anyhow::Result<()> {
     println!("{model}");
 
     let now = Instant::now();
-    let frequency_response = model.frequency_response(&args.frequencies);
+    let frequency_response = if args.svd {
+        println!("computing frequency response SVD");
+        model.frequency_response_svd(&args.frequencies)
+    } else {
+        model.frequency_response(&args.frequencies)
+    };
     println!(
         "frequency response computed in {:.3}s",
         now.elapsed().as_secs_f64()

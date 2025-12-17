@@ -456,6 +456,12 @@ impl FrequencyResponse for Structural {
             fr
         }
     }
+    fn j_omega_svd(&self, jw: if64) -> Self::Output {
+        let mat = self.j_omega(jw);
+        let svd = mat.svd().unwrap();
+        let s = svd.S();
+        s.column_vector().as_mat().to_owned()
+    }
 }
 
 #[cfg(test)]
