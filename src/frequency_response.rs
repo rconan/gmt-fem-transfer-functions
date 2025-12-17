@@ -86,6 +86,9 @@ pub trait FrequencyResponse {
     ///
     /// The argument is the imaginary frequency in radians
     fn j_omega(&self, jw: if64) -> Self::Output;
+    fn j_omega_svd(&self, _jw: if64) -> Self::Output {
+        unimplemented!()
+    }
     /// Returns the frequencies and the frequency response
     ///
     /// The argument is frequencies in Hz
@@ -137,6 +140,62 @@ pub trait FrequencyResponse {
                 .map(|nu| {
                     let jw = if64::new(0f64, DPI * nu);
                     FrequencyResponseData::new(nu, self.j_omega(jw))
+                })
+                .collect(),
+        };
+        FrequencyResponseVec::new(data)
+    }
+    fn frequency_response_svd<T: Into<Frequencies>>(
+        &self,
+        nu: T,
+    ) -> FrequencyResponseVec<Self::Output>
+    where
+        <Self as FrequencyResponse>::Output: Cartesian2Polar + Send,
+        <<Self as FrequencyResponse>::Output as Cartesian2Polar>::Output: Send,
+        Self: Sync,
+    {
+        let frequencies: Frequencies = nu.into();
+        let style = ProgressStyle::with_template("|{bar} {pos}|")
+            .unwrap()
+            .progress_chars("-.-");
+        let data = match frequencies {
+            Frequencies::Single { value: nu } => {
+                let jw = if64::new(0f64, DPI * nu);
+                vec![FrequencyResponseData::new(nu, self.j_omega_svd(jw))]
+            }
+            Frequencies::LogSpace { lower, upper, n } => {
+                assert!(upper > lower);
+                let log_step = (upper.log10() - lower.log10()) / (n - 1) as f64;
+                (0..n)
+                    .into_par_iter()
+                    .progress_with_style(style)
+                    .map(|i| {
+                        let log_nu = lower.log10() + log_step * i as f64;
+                        let nu = 10f64.powf(log_nu);
+                        let jw = if64::new(0f64, DPI * nu);
+                        FrequencyResponseData::new(nu, self.j_omega_svd(jw))
+                    })
+                    .collect()
+            }
+            Frequencies::LinSpace { lower, upper, n } => {
+                assert!(upper > lower);
+                let step = (upper - lower) / (n - 1) as f64;
+                (0..n)
+                    .into_par_iter()
+                    .progress_with_style(style)
+                    .map(|i| {
+                        let nu = lower + step * i as f64;
+                        let jw = if64::new(0f64, DPI * nu);
+                        FrequencyResponseData::new(nu, self.j_omega_svd(jw))
+                    })
+                    .collect()
+            }
+            Frequencies::Set { values: nu } => nu
+                .into_par_iter()
+                .progress_with_style(style)
+                .map(|nu| {
+                    let jw = if64::new(0f64, DPI * nu);
+                    FrequencyResponseData::new(nu, self.j_omega_svd(jw))
                 })
                 .collect(),
         };
