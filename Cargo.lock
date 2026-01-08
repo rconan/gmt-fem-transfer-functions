@@ -1496,9 +1496,9 @@ dependencies = [
 
 [[package]]
 name = "gmt_dos-clients_fem"
-version = "5.2.0"
+version = "5.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d5701add7ca36f0b6ab45c99ccd314f1bdc894f1784482d34d9188be8397fa31"
+checksum = "605939ec4c758168501910a69fc121650ed072f8440db19507dda787d27c2720"
 dependencies = [
  "anyhow",
  "arrow",

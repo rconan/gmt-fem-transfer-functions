@@ -82,9 +82,9 @@ impl Cartesian2Polar for Complex<f64> {
 /// Frequency response magnitude and phase matrices at one frequency
 #[derive(Debug, Serialize)]
 pub struct FrequencyResponseData<T: Cartesian2Polar> {
-    frequency: f64,
-    magnitude: <T as Cartesian2Polar>::Output,
-    phase: <T as Cartesian2Polar>::Output,
+    pub frequency: f64,
+    pub magnitude: <T as Cartesian2Polar>::Output,
+    pub phase: <T as Cartesian2Polar>::Output,
 }
 impl<T: Cartesian2Polar> FrequencyResponseData<T> {
     /// Creates a [FrequencyResponseData] instance from a frequency and response complex matrix

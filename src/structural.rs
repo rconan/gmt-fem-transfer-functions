@@ -152,11 +152,18 @@ impl StructuralBuilder {
             .switch_inputs_by_name(self.built.inputs.clone(), Switch::On)?
             .switch_outputs(Switch::Off, None)
             .switch_outputs_by_name(self.built.outputs.clone(), Switch::On)?;
-        let b = DMatrix::<f64>::from_row_slice(fem.n_modes(), fem.n_inputs(), &fem.inputs2modes())
-            .map(|x| Complex::new(x, 0f64));
-        let c =
-            DMatrix::<f64>::from_row_slice(fem.n_outputs(), fem.n_modes(), &fem.modes2outputs())
-                .map(|x| Complex::new(x, 0f64));
+        let b = DMatrix::<f64>::from_row_slice(
+            fem.n_modes(),
+            fem.n_inputs(),
+            &fem.named_inputs_to_modes(&self.built.inputs)?.unwrap(),
+        )
+        .map(|x| Complex::new(x, 0f64));
+        let c = DMatrix::<f64>::from_row_slice(
+            fem.n_outputs(),
+            fem.n_modes(),
+            &fem.modes_to_named_outputs(&self.built.outputs)?.unwrap(),
+        )
+        .map(|x| Complex::new(x, 0f64));
         let g_ssol = fem.reduced_static_gain();
         let w = fem.eigen_frequencies_to_radians();
 
