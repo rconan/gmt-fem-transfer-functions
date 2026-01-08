@@ -11,6 +11,10 @@ pub mod structural;
 
 include!(concat!(env!("OUT_DIR"), "/fem_io.rs"));
 
+
+#[allow(non_camel_case_types)]
+pub type if64 = num_complex::Complex<f64>;
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("failed to process command line interface arguments")]

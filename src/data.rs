@@ -1,12 +1,16 @@
 //! Frequency response data products
 
-use nalgebra::{Complex, ComplexField, DMatrix};
+#[cfg(feature = "faer")]
+use faer::Mat;
+#[cfg(feature = "nalgebra")]
+use nalgebra::{ComplexField, DMatrix};
 use serde::Serialize;
 use std::io::BufWriter;
 use std::time::Instant;
 use std::{env, f64, fmt::Display, fs::File, io, ops::Deref, path::Path};
 
 use crate::{cli::Cli, structural::Structural};
+use crate::if64;
 
 #[derive(Debug, thiserror::Error)]
 pub enum TransferFunctionDataError {
@@ -30,6 +34,15 @@ pub trait Dims {
     fn size(&self) -> Self::D;
 }
 
+#[cfg(feature = "faer")]
+impl Dims for Mat<f64> {
+    type D = (usize, usize);
+
+    fn size(&self) -> Self::D {
+        self.shape()
+    }
+}
+#[cfg(feature = "nalgebra")]
 impl Dims for DMatrix<f64> {
     type D = (usize, usize);
 
@@ -53,7 +66,29 @@ pub trait Cartesian2Polar {
     fn phase(&self) -> Self::Output;
 }
 
-impl Cartesian2Polar for DMatrix<Complex<f64>> {
+#[cfg(feature = "faer")]
+impl Cartesian2Polar for Mat<if64> {
+    type Output = Mat<f64>;
+
+    fn magnitude(&self) -> Self::Output {
+        let mut col_wise_data = self
+            .col_iter()
+            .flat_map(|col| col.iter().cloned().map(|c| c.norm()).collect::<Vec<_>>());
+        let (nrows, ncols) = self.shape();
+        Mat::from_fn(nrows, ncols, |_, _| col_wise_data.next().unwrap())
+    }
+
+    fn phase(&self) -> Self::Output {
+        let mut col_wise_data = self
+            .col_iter()
+            .flat_map(|col| col.iter().map(|c| c.arg()).collect::<Vec<_>>());
+        let (nrows, ncols) = self.shape();
+        Mat::from_fn(nrows, ncols, |_, _| col_wise_data.next().unwrap())
+    }
+}
+
+#[cfg(feature = "nalgebra")]
+impl Cartesian2Polar for DMatrix<if64> {
     type Output = DMatrix<f64>;
 
     fn magnitude(&self) -> Self::Output {
@@ -65,15 +100,15 @@ impl Cartesian2Polar for DMatrix<Complex<f64>> {
     }
 }
 
-impl Cartesian2Polar for Complex<f64> {
+impl Cartesian2Polar for if64 {
     type Output = f64;
 
     fn magnitude(&self) -> Self::Output {
-        self.modulus()
+        self.norm()
     }
 
     fn phase(&self) -> Self::Output {
-        self.argument()
+        self.arg()
     }
 }
 
@@ -107,10 +142,15 @@ where
 }
 
 /// Collection of [FrequencyResponseData]
-#[derive(Debug, Default, Serialize)]
+#[derive(Debug, Serialize)]
 pub struct FrequencyResponseVec<T: Cartesian2Polar>(
     #[serde(rename = "data")] Vec<FrequencyResponseData<T>>,
 );
+impl<T: Cartesian2Polar> Default for FrequencyResponseVec<T> {
+    fn default() -> Self {
+        Self(vec![])
+    }
+}
 
 impl<T: Cartesian2Polar> FrequencyResponseVec<T> {
     /// Creates a new [FrequencyResponseVec] instance from a vector of [FrequencyResponseData]
@@ -171,7 +211,10 @@ pub struct TransferFunctionData {
     outputs: Vec<String>,
     modal_damping_coefficient: f64,
     fem_eigen_frequency_range: (f64, f64),
-    frequency_response: FrequencyResponseVec<DMatrix<Complex<f64>>>,
+    #[cfg(feature = "nalgebra")]
+    frequency_response: FrequencyResponseVec<DMatrix<if64>>,
+    #[cfg(feature = "faer")]
+    frequency_response: FrequencyResponseVec<Mat<if64>>,
 }
 
 impl From<&Cli> for TransferFunctionData {
@@ -201,24 +244,24 @@ impl TransferFunctionData {
         let now = Instant::now();
         match path.as_ref().extension() {
             Some(ext) if ext == "pkl" => {
-                let file = File::create(&path)?;
-                let mut buffer = BufWriter::new(file);
-                serde_pickle::to_writer(&mut buffer, &self, Default::default())?;
-            }
-            Some(ext) if ext == "mat" => self.dump_to_mat(&path)?,
-            Some(ext) => {
-                return Err(TransferFunctionDataError::DataFileExtension(
-                    ext.to_string_lossy().into_owned(),
-                ));
-            }
-            None => return Err(TransferFunctionDataError::MissingFileExtension),
-        };
-        println!(
-            "Frequency response written to {} in {}ms",
-            path.as_ref().display(),
-            now.elapsed().as_millis()
-        );
-        Ok(())
+                 let file = File::create(&path)?;
+                 let mut buffer = BufWriter::new(file);
+                 serde_pickle::to_writer(&mut buffer, &self, Default::default())?;
+             }
+             Some(ext) if ext == "mat" => self.dump_to_mat(&path)?,
+             Some(ext) => {
+                 return Err(TransferFunctionDataError::DataFileExtension(
+                     ext.to_string_lossy().into_owned(),
+                 ));
+             }
+             None => return Err(TransferFunctionDataError::MissingFileExtension),
+         };
+         println!(
+             "Frequency response written to {} in {}ms",
+             path.as_ref().display(),
+             now.elapsed().as_millis()
+         );
+         Ok(())
     }
 
     pub fn dump_to_mat(self, path: impl AsRef<Path>) -> Result<()> {
@@ -234,8 +277,8 @@ impl TransferFunctionData {
         for r in self.frequency_response.iter() {
             let data_fields = vec![
                 Mat::maybe_from("frequency", r.frequency)?,
-                Mat::maybe_from("magnitude", r.magnitude.clone())?,
-                Mat::maybe_from("phase", r.phase.clone())?,
+                Mat::maybe_from("magnitude", &r.magnitude)?,
+                Mat::maybe_from("phase", &r.phase)?,
             ];
             data.push(Mat::maybe_from("data", data_fields)?);
         }
@@ -247,10 +290,18 @@ impl TransferFunctionData {
     }
 
     /// Adds the [frequency response](FrequencyResponseVec) to the data
+    #[cfg(feature = "nalgebra")]
     pub fn add_response(
         self,
-        frequency_response: FrequencyResponseVec<DMatrix<Complex<f64>>>,
+        frequency_response: FrequencyResponseVec<DMatrix<if64>>,
     ) -> Self {
+        Self {
+            frequency_response,
+            ..self
+        }
+    }
+    #[cfg(feature = "faer")]
+    pub fn add_response(self, frequency_response: FrequencyResponseVec<Mat<if64>>) -> Self {
         Self {
             frequency_response,
             ..self
