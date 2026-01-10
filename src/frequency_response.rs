@@ -46,7 +46,16 @@ pub enum Frequencies {
         values: Vec<f64>,
     },
     /// structural model natural frequencies
-    Structural,
+    Structural{
+        /// minimum natural frequency [Hz]
+        #[arg(long)]
+        min: Option<f64>,
+        /// maximum natural frequency [Hz]
+        #[arg(long)]
+        max: Option<f64>,
+        
+    }
+    ,
 }
 impl From<f64> for Frequencies {
     fn from(value: f64) -> Self {

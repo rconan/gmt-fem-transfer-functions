@@ -362,6 +362,36 @@ impl Structural {
             .map(|x| *x * 0.5 * consts::FRAC_1_PI)
             .collect()
     }
+    /// Return the model natural frequencies
+    pub fn natural_frequencies(&self, min: Option<f64>, max: Option<f64>) -> Frequencies {
+        Frequencies::Set {
+            values: {
+                self.w
+                    .iter()
+                    .copied()
+                    .map(|x| 0.5 * x * std::f64::consts::FRAC_1_PI)
+                    .filter_map(|x| {
+                        if let Some(min) = min
+                            && x < min
+                        {
+                            None
+                        } else {
+                            Some(x)
+                        }
+                    })
+                    .filter_map(|x| {
+                        if let Some(max) = max
+                            && x > max
+                        {
+                            None
+                        } else {
+                            Some(x)
+                        }
+                    })
+                    .collect()
+            },
+        }
+    }
 }
 
 impl Display for Structural {
@@ -506,15 +536,8 @@ impl StructuralFrequencyResponse for Structural {
         Self: Sync,
     {
         let frequencies: Frequencies = nu.into();
-        let frequencies = if let Frequencies::Structural = frequencies {
-            Frequencies::Set {
-                values: self
-                    .w
-                    .iter()
-                    .copied()
-                    .map(|x| 0.5 * x * std::f64::consts::FRAC_1_PI)
-                    .collect(),
-            }
+        let frequencies = if let Frequencies::Structural { min, max } = frequencies {
+            self.natural_frequencies(min, max)
         } else {
             frequencies
         };
@@ -531,15 +554,8 @@ impl StructuralFrequencyResponse for Structural {
         Self: Sync,
     {
         let frequencies: Frequencies = nu.into();
-        let frequencies = if let Frequencies::Structural = frequencies {
-            Frequencies::Set {
-                values: self
-                    .w
-                    .iter()
-                    .copied()
-                    .map(|x| 0.5 * x * std::f64::consts::FRAC_1_PI)
-                    .collect(),
-            }
+        let frequencies = if let Frequencies::Structural { min, max } = frequencies {
+            self.natural_frequencies(min, max)
         } else {
             frequencies
         };
@@ -551,7 +567,7 @@ impl StructuralFrequencyResponse for Structural {
 mod tests {
     use crate::frequency_response::Frequencies;
 
-    use super::{StructuralFrequencyResponse,Structural};
+    use super::{Structural, StructuralFrequencyResponse};
 
     #[test]
     fn mount() {
