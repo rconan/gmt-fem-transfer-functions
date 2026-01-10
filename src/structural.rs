@@ -10,7 +10,10 @@ use gmt_fem::FEM;
 use nalgebra::{DMatrix, DMatrixView};
 use serde::{Deserialize, Serialize};
 
-use crate::{frequency_response::FrequencyResponse, if64};
+use crate::{
+    frequency_response::{Frequencies, FrequencyResponse, FrequencyResponseDefault, JOmega},
+    if64,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum StructuralError {
@@ -383,7 +386,7 @@ impl Display for Structural {
 }
 
 #[cfg(feature = "nalgebra")]
-impl FrequencyResponse for Structural {
+impl JOmega for Structural {
     type Output = DMatrix<if64>;
 
     /// *Dynamics and Control of Structures, W.K. Gawronsky*, p.17-18, Eqs.(2.21)-(2.22)
@@ -426,7 +429,7 @@ impl FrequencyResponse for Structural {
     }
 }
 #[cfg(feature = "faer")]
-impl FrequencyResponse for Structural {
+impl JOmega for Structural {
     type Output = Mat<if64>;
 
     /// *Dynamics and Control of Structures, W.K. Gawronsky*, p.17-18, Eqs.(2.21)-(2.22)
@@ -470,6 +473,59 @@ impl FrequencyResponse for Structural {
         let svd = mat.svd().unwrap();
         let s = svd.S();
         s.column_vector().as_mat().to_owned()
+    }
+}
+
+impl FrequencyResponseDefault for Structural {}
+impl FrequencyResponse for Structural {
+    fn frequency_response<T: Into<crate::frequency_response::Frequencies>>(
+        &self,
+        nu: T,
+    ) -> crate::data::FrequencyResponseVec<Self::Output>
+    where
+        <Self as JOmega>::Output: crate::data::Cartesian2Polar + Send,
+        <<Self as JOmega>::Output as crate::data::Cartesian2Polar>::Output: Send,
+        Self: Sync,
+    {
+        let frequencies: Frequencies = nu.into();
+        let frequencies = if let Frequencies::Structural = frequencies {
+            Frequencies::Set {
+                values: self
+                    .w
+                    .iter()
+                    .copied()
+                    .map(|x| 0.5 * x * std::f64::consts::FRAC_1_PI)
+                    .collect(),
+            }
+        } else {
+            frequencies
+        };
+        <Self as FrequencyResponseDefault>::frequency_response_default(&self, frequencies)
+    }
+
+    fn frequency_response_svd<T: Into<crate::frequency_response::Frequencies>>(
+        &self,
+        nu: T,
+    ) -> crate::data::FrequencyResponseVec<Self::Output>
+    where
+        <Self as JOmega>::Output: crate::data::Cartesian2Polar + Send,
+        <<Self as JOmega>::Output as crate::data::Cartesian2Polar>::Output: Send,
+        Self: Sync,
+    {
+        let frequencies: Frequencies = nu.into();
+        let frequencies = if let Frequencies::Structural = frequencies {
+            Frequencies::Set {
+                values: self
+                    .w
+                    .iter()
+                    .copied()
+                    .map(|x| 0.5 * x * std::f64::consts::FRAC_1_PI)
+                    .collect(),
+            }
+        } else {
+            frequencies
+        };
+        <Self as FrequencyResponseDefault>::frequency_response_svd_default(&self, frequencies)
     }
 }
 

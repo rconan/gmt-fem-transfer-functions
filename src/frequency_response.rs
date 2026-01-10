@@ -45,6 +45,8 @@ pub enum Frequencies {
         #[arg(short, long)]
         values: Vec<f64>,
     },
+    /// structural model natural frequencies
+    Structural,
 }
 impl From<f64> for Frequencies {
     fn from(value: f64) -> Self {
@@ -77,8 +79,7 @@ impl Frequencies {
     }
 }
 
-/// Frequency response interface definition
-pub trait FrequencyResponse {
+pub trait JOmega {
     /// Transfer function type
     type Output;
 
@@ -86,16 +87,47 @@ pub trait FrequencyResponse {
     ///
     /// The argument is the imaginary frequency in radians
     fn j_omega(&self, jw: if64) -> Self::Output;
+    /// Returns the frequency response singular values
+    ///
+    /// The argument is the imaginary frequency in radians
     fn j_omega_svd(&self, _jw: if64) -> Self::Output {
         unimplemented!()
     }
+}
+/// Frequency response interface definition
+pub trait FrequencyResponse: FrequencyResponseDefault {
     /// Returns the frequencies and the frequency response
     ///
     /// The argument is frequencies in Hz
     fn frequency_response<T: Into<Frequencies>>(&self, nu: T) -> FrequencyResponseVec<Self::Output>
     where
-        <Self as FrequencyResponse>::Output: Cartesian2Polar + Send,
-        <<Self as FrequencyResponse>::Output as Cartesian2Polar>::Output: Send,
+        <Self as JOmega>::Output: Cartesian2Polar + Send,
+        <<Self as JOmega>::Output as Cartesian2Polar>::Output: Send,
+        Self: Sync,
+    {
+        <Self as FrequencyResponseDefault>::frequency_response_default(&self, nu)
+    }
+    fn frequency_response_svd<T: Into<Frequencies>>(
+        &self,
+        nu: T,
+    ) -> FrequencyResponseVec<Self::Output>
+    where
+        <Self as JOmega>::Output: Cartesian2Polar + Send,
+        <<Self as JOmega>::Output as Cartesian2Polar>::Output: Send,
+        Self: Sync,
+    {
+        <Self as FrequencyResponseDefault>::frequency_response_svd_default(&self, nu)
+    }
+}
+/// Frequency response interface definition
+pub trait FrequencyResponseDefault: JOmega {
+    /// Returns the frequencies and the frequency response
+    ///
+    /// The argument is frequencies in Hz
+    fn frequency_response_default<T: Into<Frequencies>>(&self, nu: T) -> FrequencyResponseVec<Self::Output>
+    where
+        <Self as JOmega>::Output: Cartesian2Polar + Send,
+        <<Self as JOmega>::Output as Cartesian2Polar>::Output: Send,
         Self: Sync,
     {
         let frequencies: Frequencies = nu.into();
@@ -142,16 +174,17 @@ pub trait FrequencyResponse {
                     FrequencyResponseData::new(nu, self.j_omega(jw))
                 })
                 .collect(),
+            _ => panic!("frequencies not set, aborting"),
         };
         FrequencyResponseVec::new(data)
     }
-    fn frequency_response_svd<T: Into<Frequencies>>(
+    fn frequency_response_svd_default<T: Into<Frequencies>>(
         &self,
         nu: T,
     ) -> FrequencyResponseVec<Self::Output>
     where
-        <Self as FrequencyResponse>::Output: Cartesian2Polar + Send,
-        <<Self as FrequencyResponse>::Output as Cartesian2Polar>::Output: Send,
+        <Self as JOmega>::Output: Cartesian2Polar + Send,
+        <<Self as JOmega>::Output as Cartesian2Polar>::Output: Send,
         Self: Sync,
     {
         let frequencies: Frequencies = nu.into();
@@ -198,13 +231,14 @@ pub trait FrequencyResponse {
                     FrequencyResponseData::new(nu, self.j_omega_svd(jw))
                 })
                 .collect(),
+            _ => panic!("frequencies not set, aborting"),
         };
         FrequencyResponseVec::new(data)
     }
     /// Returns the first derivation of the frequency response
-    fn j_omega_first(&self, jw: if64) -> <<Self as FrequencyResponse>::Output as Mul<if64>>::Output
+    fn j_omega_first(&self, jw: if64) -> <<Self as JOmega>::Output as Mul<if64>>::Output
     where
-        <Self as FrequencyResponse>::Output: Mul<if64>,
+        <Self as JOmega>::Output: Mul<if64>,
     {
         self.j_omega(jw) * jw
     }
@@ -212,10 +246,10 @@ pub trait FrequencyResponse {
     fn j_omega_second(
         &self,
         jw: if64,
-    ) -> <<<Self as FrequencyResponse>::Output as Mul<if64>>::Output as Mul<if64>>::Output
+    ) -> <<<Self as JOmega>::Output as Mul<if64>>::Output as Mul<if64>>::Output
     where
-        <Self as FrequencyResponse>::Output: Mul<if64>,
-        <<Self as FrequencyResponse>::Output as Mul<if64>>::Output: Mul<if64>,
+        <Self as JOmega>::Output: Mul<if64>,
+        <<Self as JOmega>::Output as Mul<if64>>::Output: Mul<if64>,
     {
         self.j_omega_first(jw) * jw
     }
@@ -235,7 +269,7 @@ impl FirstOrderLowPass {
         }
     }
 }
-impl FrequencyResponse for FirstOrderLowPass {
+impl JOmega for FirstOrderLowPass {
     type Output = if64;
     fn j_omega(&self, jw: if64) -> Self::Output {
         jw / (1f64 + jw / (DPI * self.corner_frequency_hz))
@@ -258,7 +292,7 @@ impl BesselFilter {
         }
     }
 }
-impl FrequencyResponse for BesselFilter {
+impl JOmega for BesselFilter {
     type Output = if64;
     fn j_omega(&self, jw: if64) -> Self::Output {
         let num = self.beta[0] * self.w_bf.powi(4);
@@ -286,7 +320,7 @@ impl PICompensator {
         Self { kp: 7e4, ki: 5e5 }
     }
 }
-impl FrequencyResponse for PICompensator {
+impl JOmega for PICompensator {
     type Output = if64;
     fn j_omega(&self, jw: if64) -> Self::Output {
         self.kp + self.ki / jw

@@ -57,7 +57,7 @@ path = "src/bin/lom.rs"
 required-features = ["gmt-lom"]
 
 [features]
-# default = ["nalgebra"]
+default = ["faer"]
 gmt-lom = ["dep:gmt-lom"]
 faer = ["dep:faer", "matio-rs/faer"]
 nalgebra = ["dep:nalgebra", "matio-rs/nalgebra"]
