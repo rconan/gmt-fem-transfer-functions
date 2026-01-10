@@ -11,7 +11,7 @@ use nalgebra::{DMatrix, DMatrixView};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    frequency_response::{Frequencies, FrequencyResponse, FrequencyResponseDefault, JOmega},
+    frequency_response::{Frequencies, FrequencyResponse, JOmega},
     if64,
 };
 
@@ -476,8 +476,26 @@ impl JOmega for Structural {
     }
 }
 
-impl FrequencyResponseDefault for Structural {}
-impl FrequencyResponse for Structural {
+pub trait StructuralFrequencyResponse: FrequencyResponse {
+    fn frequency_response<T: Into<crate::frequency_response::Frequencies>>(
+        &self,
+        nu: T,
+    ) -> crate::data::FrequencyResponseVec<Self::Output>
+    where
+        <Self as JOmega>::Output: crate::data::Cartesian2Polar + Send,
+        <<Self as JOmega>::Output as crate::data::Cartesian2Polar>::Output: Send,
+        Self: Sync;
+    fn frequency_response_svd<T: Into<crate::frequency_response::Frequencies>>(
+        &self,
+        nu: T,
+    ) -> crate::data::FrequencyResponseVec<Self::Output>
+    where
+        <Self as JOmega>::Output: crate::data::Cartesian2Polar + Send,
+        <<Self as JOmega>::Output as crate::data::Cartesian2Polar>::Output: Send,
+        Self: Sync;
+}
+
+impl StructuralFrequencyResponse for Structural {
     fn frequency_response<T: Into<crate::frequency_response::Frequencies>>(
         &self,
         nu: T,
@@ -500,7 +518,7 @@ impl FrequencyResponse for Structural {
         } else {
             frequencies
         };
-        <Self as FrequencyResponseDefault>::frequency_response_default(&self, frequencies)
+        <Self as FrequencyResponse>::frequency_response(&self, frequencies)
     }
 
     fn frequency_response_svd<T: Into<crate::frequency_response::Frequencies>>(
@@ -525,7 +543,7 @@ impl FrequencyResponse for Structural {
         } else {
             frequencies
         };
-        <Self as FrequencyResponseDefault>::frequency_response_svd_default(&self, frequencies)
+        <Self as FrequencyResponse>::frequency_response_svd(&self, frequencies)
     }
 }
 
@@ -533,7 +551,7 @@ impl FrequencyResponse for Structural {
 mod tests {
     use crate::frequency_response::Frequencies;
 
-    use super::*;
+    use super::{StructuralFrequencyResponse,Structural};
 
     #[test]
     fn mount() {
@@ -545,7 +563,7 @@ mod tests {
         .unwrap();
 
         let tf = structural.frequency_response(1f64);
-        println!("{}", tf[0]);
+        println!("{:?}", tf[0]);
     }
 
     #[test]
@@ -558,7 +576,7 @@ mod tests {
         .unwrap();
 
         let tf = structural.frequency_response(Frequencies::logspace(0.1, 100., 1000));
-        println!("{}", tf[0]);
+        println!("{:?}", tf[0]);
 
         // let mut file = File::create("mount_el_tf.pkl").unwrap();
         // serde_pickle::to_writer(&mut file, &(nu, tf), Default::default()).unwrap();
@@ -576,7 +594,7 @@ mod tests {
 
         let tf = structural.frequency_response(Frequencies::logspace(0.1, 4e3, 1000));
         //println!("{:?}", nu);
-        println!("{}", tf[0]);
+        println!("{:?}", tf[0]);
 
         // let mut file = File::create("mount_el_tf_dc_full-sampling_delay.pkl").unwrap();
         // serde_pickle::to_writer(&mut file, &(nu, tf), Default::default()).unwrap();
@@ -597,7 +615,7 @@ mod tests {
             n: 2,
         });
         // println!("{:?}", nu);
-        println!("{}", tf[0]);
+        println!("{:?}", tf[0]);
 
         // let sys = Sys::from((nu, tf));
         // dbg!(sys);
