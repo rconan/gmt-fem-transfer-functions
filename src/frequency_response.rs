@@ -5,7 +5,7 @@ use rayon::prelude::*;
 use std::{f64::consts::PI, ops::Mul};
 
 use crate::{
-    data::{Cartesian2Polar, FrequencyResponseData, FrequencyResponseVec},
+    data::{Cartesian2Polar, FrequencyResponseData, FrequencyResponseVec, Get},
     if64,
 };
 
@@ -46,16 +46,14 @@ pub enum Frequencies {
         values: Vec<f64>,
     },
     /// structural model natural frequencies
-    Structural{
+    Structural {
         /// minimum natural frequency [Hz]
         #[arg(long)]
         min: Option<f64>,
         /// maximum natural frequency [Hz]
         #[arg(long)]
         max: Option<f64>,
-        
-    }
-    ,
+    },
 }
 impl From<f64> for Frequencies {
     fn from(value: f64) -> Self {
@@ -136,7 +134,7 @@ pub trait FrequencyResponse: JOmega {
     fn frequency_response<T: Into<Frequencies>>(&self, nu: T) -> FrequencyResponseVec<Self::Output>
     where
         <Self as JOmega>::Output: Cartesian2Polar + Send,
-        <<Self as JOmega>::Output as Cartesian2Polar>::Output: Send,
+        <<Self as JOmega>::Output as Cartesian2Polar>::Output: Get + Send,
         Self: Sync,
     {
         let frequencies: Frequencies = nu.into();
@@ -193,7 +191,7 @@ pub trait FrequencyResponse: JOmega {
     ) -> FrequencyResponseVec<Self::Output>
     where
         <Self as JOmega>::Output: Cartesian2Polar + Send,
-        <<Self as JOmega>::Output as Cartesian2Polar>::Output: Send,
+        <<Self as JOmega>::Output as Cartesian2Polar>::Output: Get + Send,
         Self: Sync,
     {
         let frequencies: Frequencies = nu.into();

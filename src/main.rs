@@ -3,7 +3,7 @@ use std::time::Instant;
 use clap::Parser;
 use gmt_fem_frequency_response::{
     Cli,
-    data::TransferFunctionData,
+    data::{Extremum, TransferFunctionData},
     structural::{Structural, StructuralFrequencyResponse},
 };
 
@@ -25,6 +25,14 @@ fn main() -> anyhow::Result<()> {
         now.elapsed().as_secs_f64()
     );
     println!("{frequency_response}");
+
+    let mut ex = frequency_response.extrema(None);
+    ex.sort_by(|Extremum { y: a, .. }, Extremum { y: b, .. }| b.partial_cmp(a).unwrap());
+    println!("Frequency response extrema:");
+    ex.iter()
+        .take(5)
+        .enumerate()
+        .for_each(|(i, Extremum { x, y })| println!(" {:2}: {:8.2} {:.3e}", i + 1, x, y));
 
     TransferFunctionData::from(&args)
         .add_structural(&model)

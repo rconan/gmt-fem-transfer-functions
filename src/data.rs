@@ -9,8 +9,8 @@ use std::io::BufWriter;
 use std::time::Instant;
 use std::{env, f64, fmt::Display, fs::File, io, ops::Deref, path::Path};
 
-use crate::{cli::Cli, structural::Structural};
 use crate::if64;
+use crate::{cli::Cli, structural::Structural};
 
 #[derive(Debug, thiserror::Error)]
 pub enum TransferFunctionDataError {
@@ -112,6 +112,15 @@ impl Cartesian2Polar for if64 {
     }
 }
 
+pub trait Get {
+    fn get(&self, row: usize, col: usize) -> &f64;
+}
+impl Get for Mat<f64> {
+    fn get(&self, row: usize, col: usize) -> &f64 {
+        self.get(row, col)
+    }
+}
+
 /// Frequency response data point
 ///
 /// Frequency response magnitude and phase matrices at one frequency
@@ -152,13 +161,45 @@ impl<T: Cartesian2Polar> Default for FrequencyResponseVec<T> {
     }
 }
 
-impl<T: Cartesian2Polar> FrequencyResponseVec<T> {
+/// Frequency response extremum
+pub struct Extremum {
+    pub x: f64,
+    pub y: f64,
+}
+
+impl<T> FrequencyResponseVec<T>
+where
+    T: Cartesian2Polar,
+    <T as Cartesian2Polar>::Output: Get,
+{
     /// Creates a new [FrequencyResponseVec] instance from a vector of [FrequencyResponseData]
     pub fn new(frequency_response_datas: Vec<FrequencyResponseData<T>>) -> Self {
         Self(frequency_response_datas)
     }
+    /// Returns the frequency vector
     pub fn frequencies(&self) -> Vec<f64> {
         self.iter().map(|fr| fr.frequency).collect()
+    }
+    /// Returns the extrema of the frequency response
+    pub fn extrema(&self, indices: Option<(usize, usize)>) -> Vec<Extremum> {
+        let (row, col) = indices.unwrap_or_default();
+        let mut iter = self
+            .0
+            .iter()
+            .map(|data| (data.frequency, data.magnitude.get(row, col)))
+            .peekable();
+        let mut previous_s = Option::<f64>::None;
+        let mut extrema = vec![];
+        while let Some(((fa, ma), &(_, mb))) = iter.next().zip(iter.peek()) {
+            let s = (mb - ma).signum();
+            if let Some(previous_s) = previous_s
+                && previous_s != s
+            {
+                extrema.push(Extremum { x: fa, y: *ma })
+            }
+            previous_s = Some(s);
+        }
+        extrema
     }
 }
 
@@ -176,7 +217,11 @@ impl<T: Cartesian2Polar> FromIterator<FrequencyResponseData<T>> for FrequencyRes
     }
 }
 
-impl<T: Cartesian2Polar> Display for FrequencyResponseVec<T> {
+impl<T> Display for FrequencyResponseVec<T>
+where
+    T: Cartesian2Polar,
+    <T as Cartesian2Polar>::Output: Get,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -244,24 +289,24 @@ impl TransferFunctionData {
         let now = Instant::now();
         match path.as_ref().extension() {
             Some(ext) if ext == "pkl" => {
-                 let file = File::create(&path)?;
-                 let mut buffer = BufWriter::new(file);
-                 serde_pickle::to_writer(&mut buffer, &self, Default::default())?;
-             }
-             Some(ext) if ext == "mat" => self.dump_to_mat(&path)?,
-             Some(ext) => {
-                 return Err(TransferFunctionDataError::DataFileExtension(
-                     ext.to_string_lossy().into_owned(),
-                 ));
-             }
-             None => return Err(TransferFunctionDataError::MissingFileExtension),
-         };
-         println!(
-             "Frequency response written to {} in {}ms",
-             path.as_ref().display(),
-             now.elapsed().as_millis()
-         );
-         Ok(())
+                let file = File::create(&path)?;
+                let mut buffer = BufWriter::new(file);
+                serde_pickle::to_writer(&mut buffer, &self, Default::default())?;
+            }
+            Some(ext) if ext == "mat" => self.dump_to_mat(&path)?,
+            Some(ext) => {
+                return Err(TransferFunctionDataError::DataFileExtension(
+                    ext.to_string_lossy().into_owned(),
+                ));
+            }
+            None => return Err(TransferFunctionDataError::MissingFileExtension),
+        };
+        println!(
+            "Frequency response written to {} in {}ms",
+            path.as_ref().display(),
+            now.elapsed().as_millis()
+        );
+        Ok(())
     }
 
     pub fn dump_to_mat(self, path: impl AsRef<Path>) -> Result<()> {
@@ -291,10 +336,7 @@ impl TransferFunctionData {
 
     /// Adds the [frequency response](FrequencyResponseVec) to the data
     #[cfg(feature = "nalgebra")]
-    pub fn add_response(
-        self,
-        frequency_response: FrequencyResponseVec<DMatrix<if64>>,
-    ) -> Self {
+    pub fn add_response(self, frequency_response: FrequencyResponseVec<DMatrix<if64>>) -> Self {
         Self {
             frequency_response,
             ..self
