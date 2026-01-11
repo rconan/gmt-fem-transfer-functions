@@ -83,6 +83,7 @@ pub struct Cli {
     /// data file, either a Matlab (.mat) or Python pickle (.pkl) file
     #[arg(short, long, default_value_t = String::from("gmt_frequency_response.pkl"))]
     pub filename: String,
+    /// Returns the singular values of the frequency response in place of the response
     #[arg(long)]
     pub svd: bool,
 }

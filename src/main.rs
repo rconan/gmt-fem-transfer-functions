@@ -28,7 +28,7 @@ fn main() -> anyhow::Result<()> {
 
     let mut ex = frequency_response.extrema(None);
     ex.sort_by(|Extremum { y: a, .. }, Extremum { y: b, .. }| b.partial_cmp(a).unwrap());
-    println!("Frequency response extrema:");
+    println!("Sorted frequency response extrema:");
     ex.iter()
         .take(5)
         .for_each(|Extremum { i, x, y }| println!(" {:5}: {:8.2} {:.3e}", i, x, y));
