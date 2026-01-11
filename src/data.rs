@@ -163,6 +163,7 @@ impl<T: Cartesian2Polar> Default for FrequencyResponseVec<T> {
 
 /// Frequency response extremum
 pub struct Extremum {
+    pub i: usize,
     pub x: f64,
     pub y: f64,
 }
@@ -190,14 +191,16 @@ where
             .peekable();
         let mut previous_s = Option::<f64>::None;
         let mut extrema = vec![];
+        let mut i = 0;
         while let Some(((fa, ma), &(_, mb))) = iter.next().zip(iter.peek()) {
             let s = (mb - ma).signum();
             if let Some(previous_s) = previous_s
                 && previous_s != s
             {
-                extrema.push(Extremum { x: fa, y: *ma })
+                extrema.push(Extremum { i, x: fa, y: *ma })
             }
             previous_s = Some(s);
+            i += 1;
         }
         extrema
     }

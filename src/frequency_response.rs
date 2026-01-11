@@ -53,6 +53,9 @@ pub enum Frequencies {
         /// maximum natural frequency [Hz]
         #[arg(long)]
         max: Option<f64>,
+        /// natural frequency index
+        #[arg(short,long)]
+        index: Option<Vec<usize>>
     },
 }
 impl From<f64> for Frequencies {
@@ -101,31 +104,7 @@ pub trait JOmega {
         unimplemented!()
     }
 }
-/* /// Frequency response interface definition
-pub trait FrequencyResponse: FrequencyResponseDefault {
-    /// Returns the frequencies and the frequency response
-    ///
-    /// The argument is frequencies in Hz
-    fn frequency_response<T: Into<Frequencies>>(&self, nu: T) -> FrequencyResponseVec<Self::Output>
-    where
-        <Self as JOmega>::Output: Cartesian2Polar + Send,
-        <<Self as JOmega>::Output as Cartesian2Polar>::Output: Send,
-        Self: Sync,
-    {
-        <Self as FrequencyResponseDefault>::frequency_response_default(&self, nu)
-    }
-    fn frequency_response_svd<T: Into<Frequencies>>(
-        &self,
-        nu: T,
-    ) -> FrequencyResponseVec<Self::Output>
-    where
-        <Self as JOmega>::Output: Cartesian2Polar + Send,
-        <<Self as JOmega>::Output as Cartesian2Polar>::Output: Send,
-        Self: Sync,
-    {
-        <Self as FrequencyResponseDefault>::frequency_response_svd_default(&self, nu)
-    }
-} */
+
 /// Frequency response interface definition
 pub trait FrequencyResponse: JOmega {
     /// Returns the frequencies and the frequency response

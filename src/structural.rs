@@ -363,32 +363,45 @@ impl Structural {
             .collect()
     }
     /// Return the model natural frequencies
-    pub fn natural_frequencies(&self, min: Option<f64>, max: Option<f64>) -> Frequencies {
+    pub fn natural_frequencies(
+        &self,
+        min: Option<f64>,
+        max: Option<f64>,
+        index: Option<Vec<usize>>,
+    ) -> Frequencies {
         Frequencies::Set {
             values: {
-                self.w
-                    .iter()
-                    .copied()
-                    .map(|x| 0.5 * x * std::f64::consts::FRAC_1_PI)
-                    .filter_map(|x| {
-                        if let Some(min) = min
-                            && x < min
-                        {
-                            None
-                        } else {
-                            Some(x)
-                        }
-                    })
-                    .filter_map(|x| {
-                        if let Some(max) = max
-                            && x > max
-                        {
-                            None
-                        } else {
-                            Some(x)
-                        }
-                    })
-                    .collect()
+                if let Some(index) = index {
+                    index
+                        .into_iter()
+                        .map(|i| self.w[i])
+                        .map(|x| 0.5 * x * std::f64::consts::FRAC_1_PI)
+                        .collect()
+                } else {
+                    self.w
+                        .iter()
+                        .copied()
+                        .map(|x| 0.5 * x * std::f64::consts::FRAC_1_PI)
+                        .filter_map(|x| {
+                            if let Some(min) = min
+                                && x < min
+                            {
+                                None
+                            } else {
+                                Some(x)
+                            }
+                        })
+                        .filter_map(|x| {
+                            if let Some(max) = max
+                                && x > max
+                            {
+                                None
+                            } else {
+                                Some(x)
+                            }
+                        })
+                        .collect()
+                }
             },
         }
     }
@@ -536,8 +549,8 @@ impl StructuralFrequencyResponse for Structural {
         Self: Sync,
     {
         let frequencies: Frequencies = nu.into();
-        let frequencies = if let Frequencies::Structural { min, max } = frequencies {
-            self.natural_frequencies(min, max)
+        let frequencies = if let Frequencies::Structural { min, max, index } = frequencies {
+            self.natural_frequencies(min, max, index)
         } else {
             frequencies
         };
@@ -554,8 +567,8 @@ impl StructuralFrequencyResponse for Structural {
         Self: Sync,
     {
         let frequencies: Frequencies = nu.into();
-        let frequencies = if let Frequencies::Structural { min, max } = frequencies {
-            self.natural_frequencies(min, max)
+        let frequencies = if let Frequencies::Structural { min, max, index } = frequencies {
+            self.natural_frequencies(min, max, index)
         } else {
             frequencies
         };

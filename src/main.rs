@@ -31,8 +31,7 @@ fn main() -> anyhow::Result<()> {
     println!("Frequency response extrema:");
     ex.iter()
         .take(5)
-        .enumerate()
-        .for_each(|(i, Extremum { x, y })| println!(" {:2}: {:8.2} {:.3e}", i + 1, x, y));
+        .for_each(|Extremum { i, x, y }| println!(" {:5}: {:8.2} {:.3e}", i, x, y));
 
     TransferFunctionData::from(&args)
         .add_structural(&model)
