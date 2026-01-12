@@ -3,6 +3,7 @@
 use clap::ValueEnum;
 
 pub mod cli;
+pub mod filters;
 #[doc(inline)]
 pub use cli::Cli;
 pub mod data;
