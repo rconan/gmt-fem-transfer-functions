@@ -86,6 +86,9 @@ pub struct Cli {
     /// Returns the singular values of the frequency response in place of the response
     #[arg(long)]
     pub svd: bool,
+    /// Return the mode shapes, indices of mode shapes may be specifide
+    #[arg(short)]
+    pub mode_shapes: Option<Vec<usize>>,
 }
 
 impl Cli {
