@@ -10,8 +10,10 @@ use gmt_fem::FEM;
 use nalgebra::{DMatrix, DMatrixView};
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "faer")]
+use crate::frequency_response::JOmegaSvd;
 use crate::{
-    frequency_response::{Frequencies, FrequencyResponse, JOmega},
+    frequency_response::{Frequencies, FrequencyResponse, FrequencyResponseSvd, JOmega},
     if64,
 };
 
@@ -511,6 +513,9 @@ impl JOmega for Structural {
             fr
         }
     }
+}
+#[cfg(feature = "faer")]
+impl JOmegaSvd for Structural {
     fn j_omega_svd(&self, jw: if64) -> Self::Output {
         let mat = self.j_omega(jw);
         let svd = mat.svd().unwrap();
@@ -528,6 +533,8 @@ pub trait StructuralFrequencyResponse: FrequencyResponse {
         <Self as JOmega>::Output: crate::data::Cartesian2Polar + Send,
         <<Self as JOmega>::Output as crate::data::Cartesian2Polar>::Output: Send,
         Self: Sync;
+}
+pub trait StructuralFrequencyResponseSvd: FrequencyResponseSvd {
     fn frequency_response_svd<T: Into<crate::frequency_response::Frequencies>>(
         &self,
         nu: T,
@@ -556,7 +563,8 @@ impl StructuralFrequencyResponse for Structural {
         };
         <Self as FrequencyResponse>::frequency_response(&self, frequencies)
     }
-
+}
+impl StructuralFrequencyResponseSvd for Structural {
     fn frequency_response_svd<T: Into<crate::frequency_response::Frequencies>>(
         &self,
         nu: T,
@@ -572,7 +580,7 @@ impl StructuralFrequencyResponse for Structural {
         } else {
             frequencies
         };
-        <Self as FrequencyResponse>::frequency_response_svd(&self, frequencies)
+        <Self as FrequencyResponseSvd>::frequency_response_svd(&self, frequencies)
     }
 }
 

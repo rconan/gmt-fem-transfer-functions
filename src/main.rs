@@ -4,7 +4,7 @@ use clap::Parser;
 use gmt_fem_frequency_response::{
     Cli,
     data::{Extremum, TransferFunctionData},
-    structural::{Structural, StructuralFrequencyResponse},
+    structural::{Structural, StructuralFrequencyResponse, StructuralFrequencyResponseSvd},
 };
 
 fn main() -> anyhow::Result<()> {

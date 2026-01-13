@@ -22,12 +22,13 @@ pub trait JOmega {
     ///
     /// The argument is the imaginary frequency in radians
     fn j_omega(&self, jw: if64) -> Self::Output;
+}
+
+pub trait JOmegaSvd: JOmega {
     /// Returns the frequency response singular values
     ///
     /// The argument is the imaginary frequency in radians
-    fn j_omega_svd(&self, _jw: if64) -> Self::Output {
-        unimplemented!()
-    }
+    fn j_omega_svd(&self, _jw: if64) -> Self::Output;
 }
 
 /// Frequency response interface definition
@@ -89,6 +90,30 @@ pub trait FrequencyResponse: JOmega {
         };
         FrequencyResponseVec::new(data)
     }
+
+    /// Returns the first derivation of the frequency response
+    fn j_omega_first(&self, jw: if64) -> <<Self as JOmega>::Output as Mul<if64>>::Output
+    where
+        <Self as JOmega>::Output: Mul<if64>,
+    {
+        self.j_omega(jw) * jw
+    }
+    /// Returns the second derivation of the frequency response
+    fn j_omega_second(
+        &self,
+        jw: if64,
+    ) -> <<<Self as JOmega>::Output as Mul<if64>>::Output as Mul<if64>>::Output
+    where
+        <Self as JOmega>::Output: Mul<if64>,
+        <<Self as JOmega>::Output as Mul<if64>>::Output: Mul<if64>,
+    {
+        self.j_omega_first(jw) * jw
+    }
+}
+impl<T: JOmega> FrequencyResponse for T {}
+impl<T: JOmegaSvd> FrequencyResponseSvd for T {}
+
+pub trait FrequencyResponseSvd: JOmegaSvd {
     fn frequency_response_svd<T: Into<Frequencies>>(
         &self,
         nu: T,
@@ -146,26 +171,7 @@ pub trait FrequencyResponse: JOmega {
         };
         FrequencyResponseVec::new(data)
     }
-    /// Returns the first derivation of the frequency response
-    fn j_omega_first(&self, jw: if64) -> <<Self as JOmega>::Output as Mul<if64>>::Output
-    where
-        <Self as JOmega>::Output: Mul<if64>,
-    {
-        self.j_omega(jw) * jw
-    }
-    /// Returns the second derivation of the frequency response
-    fn j_omega_second(
-        &self,
-        jw: if64,
-    ) -> <<<Self as JOmega>::Output as Mul<if64>>::Output as Mul<if64>>::Output
-    where
-        <Self as JOmega>::Output: Mul<if64>,
-        <<Self as JOmega>::Output as Mul<if64>>::Output: Mul<if64>,
-    {
-        self.j_omega_first(jw) * jw
-    }
 }
-impl<T: JOmega> FrequencyResponse for T {}
 
 #[cfg(test)]
 mod tests {
