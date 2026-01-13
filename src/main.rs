@@ -47,7 +47,7 @@ fn main() -> anyhow::Result<()> {
         .for_each(|Extremum { i, x, y }| println!(" {:5}: {:8.2} {:.3e}", i, x, y));
 
     TransferFunctionData::from(&args)
-        .add_structural(&model, false, false)
+        .add_structural(&model, args.b, args.c)
         .add_response(frequency_response)
         .dump(args.filename)?;
 

@@ -90,9 +90,12 @@ pub struct Cli {
     /// Returns the left, right or both singular vectors if set to "u", "v" or "uv"
     #[arg(long, requires = "svd")]
     pub uv: Option<String>,
-    /// Return the mode shapes, indices of mode shapes may be specifide
+    /// Return the structural force to mode matrix 
     #[arg(short)]
-    pub mode_shapes: Option<Vec<usize>>,
+    pub b: bool,
+    /// Return the structural mode to displacement matrix 
+    #[arg(short)]
+    pub c: bool,
 }
 
 impl Cli {
