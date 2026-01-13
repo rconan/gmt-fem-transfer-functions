@@ -16,7 +16,7 @@ fn main() -> anyhow::Result<()> {
     let now = Instant::now();
     let frequency_response = if args.svd {
         println!("computing frequency response SVD");
-        model.frequency_response_svd(&args.frequencies)
+        model.frequency_response_svd(&args.frequencies, false, false)
     } else {
         model.frequency_response(&args.frequencies)
     };

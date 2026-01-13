@@ -28,7 +28,12 @@ pub trait JOmegaSvd: JOmega {
     /// Returns the frequency response singular values
     ///
     /// The argument is the imaginary frequency in radians
-    fn j_omega_svd(&self, _jw: if64) -> Self::Output;
+    fn j_omega_svd(
+        &self,
+        jw: if64,
+        u: bool,
+        v: bool,
+    ) -> (Self::Output, Option<Self::Output>, Option<Self::Output>);
 }
 
 /// Frequency response interface definition
@@ -117,6 +122,8 @@ pub trait FrequencyResponseSvd: JOmegaSvd {
     fn frequency_response_svd<T: Into<Frequencies>>(
         &self,
         nu: T,
+        u: bool,
+        v: bool,
     ) -> FrequencyResponseVec<Self::Output>
     where
         <Self as JOmega>::Output: Cartesian2Polar + Send,
@@ -130,7 +137,10 @@ pub trait FrequencyResponseSvd: JOmegaSvd {
         let data = match frequencies {
             Frequencies::Single { value: nu } => {
                 let jw = if64::new(0f64, DPI * nu);
-                vec![FrequencyResponseData::new(nu, self.j_omega_svd(jw))]
+                vec![FrequencyResponseData::new_svd(
+                    nu,
+                    self.j_omega_svd(jw, u, v),
+                )]
             }
             Frequencies::LogSpace { lower, upper, n } => {
                 assert!(upper > lower);
@@ -142,7 +152,7 @@ pub trait FrequencyResponseSvd: JOmegaSvd {
                         let log_nu = lower.log10() + log_step * i as f64;
                         let nu = 10f64.powf(log_nu);
                         let jw = if64::new(0f64, DPI * nu);
-                        FrequencyResponseData::new(nu, self.j_omega_svd(jw))
+                        FrequencyResponseData::new_svd(nu, self.j_omega_svd(jw, u, v))
                     })
                     .collect()
             }
@@ -155,7 +165,7 @@ pub trait FrequencyResponseSvd: JOmegaSvd {
                     .map(|i| {
                         let nu = lower + step * i as f64;
                         let jw = if64::new(0f64, DPI * nu);
-                        FrequencyResponseData::new(nu, self.j_omega_svd(jw))
+                        FrequencyResponseData::new_svd(nu, self.j_omega_svd(jw, u, v))
                     })
                     .collect()
             }
@@ -164,7 +174,7 @@ pub trait FrequencyResponseSvd: JOmegaSvd {
                 .progress_with_style(style)
                 .map(|nu| {
                     let jw = if64::new(0f64, DPI * nu);
-                    FrequencyResponseData::new(nu, self.j_omega_svd(jw))
+                    FrequencyResponseData::new_svd(nu, self.j_omega_svd(jw, u, v))
                 })
                 .collect(),
             _ => panic!("frequencies not set, aborting"),

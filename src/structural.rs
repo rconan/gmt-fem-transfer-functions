@@ -516,11 +516,21 @@ impl JOmega for Structural {
 }
 #[cfg(feature = "faer")]
 impl JOmegaSvd for Structural {
-    fn j_omega_svd(&self, jw: if64) -> Self::Output {
+    fn j_omega_svd(
+        &self,
+        jw: if64,
+        u: bool,
+        v: bool,
+    ) -> (Self::Output, Option<Self::Output>, Option<Self::Output>) {
         let mat = self.j_omega(jw);
         let svd = mat.svd().unwrap();
-        let s = svd.S();
-        s.column_vector().as_mat().to_owned()
+        let s = svd.S().column_vector().as_mat().to_owned();
+        match (u, v) {
+            (true, true) => (s, Some(svd.U().to_owned()), Some(svd.V().to_owned())),
+            (true, false) => (s, Some(svd.U().to_owned()), None),
+            (false, true) => (s, None, Some(svd.V().to_owned())),
+            (false, false) => (s, None, None),
+        }
     }
 }
 
@@ -538,6 +548,8 @@ pub trait StructuralFrequencyResponseSvd: FrequencyResponseSvd {
     fn frequency_response_svd<T: Into<crate::frequency_response::Frequencies>>(
         &self,
         nu: T,
+        u: bool,
+        v: bool,
     ) -> crate::data::FrequencyResponseVec<Self::Output>
     where
         <Self as JOmega>::Output: crate::data::Cartesian2Polar + Send,
@@ -568,6 +580,8 @@ impl StructuralFrequencyResponseSvd for Structural {
     fn frequency_response_svd<T: Into<crate::frequency_response::Frequencies>>(
         &self,
         nu: T,
+        u: bool,
+        v: bool,
     ) -> crate::data::FrequencyResponseVec<Self::Output>
     where
         <Self as JOmega>::Output: crate::data::Cartesian2Polar + Send,
@@ -580,7 +594,7 @@ impl StructuralFrequencyResponseSvd for Structural {
         } else {
             frequencies
         };
-        <Self as FrequencyResponseSvd>::frequency_response_svd(&self, frequencies)
+        <Self as FrequencyResponseSvd>::frequency_response_svd(&self, frequencies, u, v)
     }
 }
 

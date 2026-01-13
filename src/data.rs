@@ -129,6 +129,8 @@ pub struct FrequencyResponseData<T: Cartesian2Polar> {
     pub frequency: f64,
     pub magnitude: <T as Cartesian2Polar>::Output,
     pub phase: <T as Cartesian2Polar>::Output,
+    pub u: Option<T>,
+    pub v: Option<T>,
 }
 impl<T: Cartesian2Polar> FrequencyResponseData<T> {
     /// Creates a [FrequencyResponseData] instance from a frequency and response complex matrix
@@ -137,6 +139,17 @@ impl<T: Cartesian2Polar> FrequencyResponseData<T> {
             frequency,
             magnitude: response.magnitude(),
             phase: response.phase(),
+            u: None,
+            v: None,
+        }
+    }
+    pub fn new_svd(frequency: f64, (response, u, v): (T, Option<T>, Option<T>)) -> Self {
+        Self {
+            frequency,
+            magnitude: response.magnitude(),
+            phase: response.phase(),
+            u,
+            v,
         }
     }
 }
