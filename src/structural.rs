@@ -407,6 +407,59 @@ impl Structural {
             },
         }
     }
+    /// Returns the inputs nodes \[x,y,z\]
+    pub fn inputs_nodes(&self) -> Result<Vec<f64>> {
+        let mut fem = FEM::from_env()?;
+        fem.switch_inputs(Switch::Off, None)
+            .switch_inputs(Switch::Off, None)
+            .switch_inputs_by_name(self.inputs.clone(), Switch::On)?;
+        Ok(self
+            .inputs
+            .iter()
+            .flat_map(|input| {
+                let get_out =
+                    Box::<dyn gmt_dos_clients_fem::fem_io::GetIn>::try_from(input.clone()).unwrap();
+                let idx = get_out.position(&fem.inputs).unwrap();
+                fem.inputs[idx]
+                    .as_ref()
+                    .map(|i| i.get_by(|i| i.properties.location.clone()))
+                    .unwrap()
+            })
+            .flatten()
+            .collect())
+    }
+    /// Returns the outputs nodes \[x,y,z\]
+    pub fn outputs_nodes(&self) -> Result<Vec<f64>> {
+        let mut fem = FEM::from_env()?;
+        fem.switch_inputs(Switch::Off, None)
+            .switch_outputs(Switch::Off, None)
+            .switch_outputs_by_name(self.outputs.clone(), Switch::On)?;
+        Ok(self
+            .outputs
+            .iter()
+            .flat_map(|output| {
+                let get_out =
+                    Box::<dyn gmt_dos_clients_fem::fem_io::GetOut>::try_from(output.clone())
+                        .unwrap();
+                let idx = get_out.position(&fem.outputs).unwrap();
+                fem.outputs[idx]
+                    .as_ref()
+                    .map(|i| i.get_by(|i| i.properties.location.clone()))
+                    .unwrap()
+            })
+            .flatten()
+            .collect())
+    }
+    /// Returns the force to mode matrix
+    pub fn force_to_mode(&self) -> Mat<f64> {
+        let mut iter = self.b.col_iter().flat_map(|c| c.iter().map(|x| x.re));
+        Mat::<f64>::from_fn(self.b.nrows(), self.b.ncols(), |_, _| iter.next().unwrap())
+    }
+    /// Returns the mode to displacement matrix
+    pub fn mode_to_displacement(&self) -> Mat<f64> {
+        let mut iter = self.c.col_iter().flat_map(|c| c.iter().map(|x| x.re));
+        Mat::<f64>::from_fn(self.c.nrows(), self.c.ncols(), |_, _| iter.next().unwrap())
+    }
 }
 
 impl Display for Structural {
