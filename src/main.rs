@@ -8,15 +8,28 @@ use gmt_fem_frequency_response::{
 };
 
 fn main() -> anyhow::Result<()> {
-    let args: Cli = Cli::parse();
+    let mut args: Cli = Cli::parse();
 
     let model = Structural::try_from(&args)?;
     println!("{model}");
 
     let now = Instant::now();
     let frequency_response = if args.svd {
+        let (u, v) = match args
+            .uv
+            .take()
+            .map(|svd| svd.to_lowercase())
+            .as_ref()
+            .map(|x| x.as_str())
+        {
+            Some("uv") => (true, true),
+            Some("u") => (true, false),
+            Some("v") => (false, true),
+            Some(other) => panic!(r#"found svd argument {other}, expected "u", "v" or "uv"#),
+            None => (false, false),
+        };
         println!("computing frequency response SVD");
-        model.frequency_response_svd(&args.frequencies, false, false)
+        model.frequency_response_svd(&args.frequencies, u, v)
     } else {
         model.frequency_response(&args.frequencies)
     };

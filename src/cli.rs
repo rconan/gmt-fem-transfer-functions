@@ -83,9 +83,13 @@ pub struct Cli {
     /// data file, either a Matlab (.mat) or Python pickle (.pkl) file
     #[arg(short, long, default_value_t = String::from("gmt_frequency_response.pkl"))]
     pub filename: String,
-    /// Returns the singular values of the frequency response in place of the response
+    /// Returns the singular values of the frequency response in place of the response,
+    /// returns the left, right or both singular vectors if set to "u", "v" or "uv"
     #[arg(long)]
     pub svd: bool,
+    /// Returns the left, right or both singular vectors if set to "u", "v" or "uv"
+    #[arg(long, requires = "svd")]
+    pub uv: Option<String>,
     /// Return the mode shapes, indices of mode shapes may be specifide
     #[arg(short)]
     pub mode_shapes: Option<Vec<usize>>,
