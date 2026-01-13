@@ -276,6 +276,15 @@ pub struct TransferFunctionData {
     frequency_response: FrequencyResponseVec<DMatrix<if64>>,
     #[cfg(feature = "faer")]
     frequency_response: FrequencyResponseVec<Mat<if64>>,
+    #[cfg(feature = "nalgebra")]
+    pub(crate) b: Option<DMatrix<f64>>,
+    #[cfg(feature = "faer")]
+    pub(crate) b: Option<Mat<f64>>,
+    // modal displacements matrix
+    #[cfg(feature = "nalgebra")]
+    pub(crate) c: Option<DMatrix<f64>>,
+    #[cfg(feature = "faer")]
+    pub(crate) c: Option<Mat<f64>>,
 }
 
 impl From<&Cli> for TransferFunctionData {
@@ -367,10 +376,22 @@ impl TransferFunctionData {
     }
 
     /// Adds additional data from the structural model
-    pub fn add_structural(self, structural: &Structural) -> Self {
-        let c = 0.5 * f64::consts::FRAC_1_PI;
+    pub fn add_structural(self, structural: &Structural, b: bool, c: bool) -> Self {
+        let sc = 0.5 * f64::consts::FRAC_1_PI;
         Self {
-            fem_eigen_frequency_range: (structural.w[0] * c, *structural.w.last().unwrap() * c),
+            fem_eigen_frequency_range: (structural.w[0] * sc, *structural.w.last().unwrap() * sc),
+            b: b.then(|| {
+                let mut iter = structural.b.col_iter().flat_map(|c| c.iter().map(|x| x.re));
+                Mat::<f64>::from_fn(structural.b.nrows(), structural.b.ncols(), |_, _| {
+                    iter.next().unwrap()
+                })
+            }),
+            c: c.then(|| {
+                let mut iter = structural.c.col_iter().flat_map(|c| c.iter().map(|x| x.re));
+                Mat::<f64>::from_fn(structural.c.nrows(), structural.c.ncols(), |_, _| {
+                    iter.next().unwrap()
+                })
+            }),
             ..self
         }
     }
