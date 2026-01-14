@@ -64,7 +64,7 @@ impl Dims for f64 {
 pub trait Cartesian2Polar {
     type Output: Dims + std::fmt::Debug + Serialize;
     fn magnitude(&self) -> Self::Output;
-    fn phase(&self) -> Self::Output;
+    fn phase(&self) -> Option<Self::Output>;
 }
 
 #[cfg(feature = "faer")]
@@ -79,12 +79,26 @@ impl Cartesian2Polar for Mat<if64> {
         Mat::from_fn(nrows, ncols, |_, _| col_wise_data.next().unwrap())
     }
 
-    fn phase(&self) -> Self::Output {
+    fn phase(&self) -> Option<Self::Output> {
         let mut col_wise_data = self
             .col_iter()
             .flat_map(|col| col.iter().map(|c| c.arg()).collect::<Vec<_>>());
         let (nrows, ncols) = self.shape();
-        Mat::from_fn(nrows, ncols, |_, _| col_wise_data.next().unwrap())
+        Some(Mat::from_fn(nrows, ncols, |_, _| {
+            col_wise_data.next().unwrap()
+        }))
+    }
+}
+#[cfg(feature = "faer")]
+impl Cartesian2Polar for Mat<f64> {
+    type Output = Mat<f64>;
+
+    fn magnitude(&self) -> Self::Output {
+        self.clone()
+    }
+
+    fn phase(&self) -> Option<Self::Output> {
+        None
     }
 }
 
@@ -108,8 +122,8 @@ impl Cartesian2Polar for if64 {
         self.norm()
     }
 
-    fn phase(&self) -> Self::Output {
-        self.arg()
+    fn phase(&self) -> Option<Self::Output> {
+        Some(self.arg())
     }
 }
 
@@ -129,7 +143,7 @@ impl Get for Mat<f64> {
 pub struct FrequencyResponseData<T: Cartesian2Polar> {
     pub frequency: f64,
     pub magnitude: <T as Cartesian2Polar>::Output,
-    pub phase: <T as Cartesian2Polar>::Output,
+    pub phase: Option<<T as Cartesian2Polar>::Output>,
     pub u: Option<T>,
     pub v: Option<T>,
 }
@@ -160,7 +174,11 @@ where
     <T as Cartesian2Polar>::Output: Display,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{},{},{}", self.frequency, self.magnitude, self.phase)
+        if let Some(phase) = &self.phase {
+            write!(f, "{},{},{}", self.frequency, self.magnitude, phase)
+        } else {
+            write!(f, "{},{}", self.frequency, self.magnitude)
+        }
     }
 }
 
@@ -281,7 +299,10 @@ impl ModalMatrix {
 
 /// GMT FEM transfer function data export
 #[derive(Debug, Default, Serialize)]
-pub struct TransferFunctionData {
+pub struct TransferFunctionData<T>
+where
+    Mat<T>: Cartesian2Polar,
+{
     fem: String,
     inputs: Vec<String>,
     outputs: Vec<String>,
@@ -290,13 +311,17 @@ pub struct TransferFunctionData {
     #[cfg(feature = "nalgebra")]
     frequency_response: FrequencyResponseVec<DMatrix<if64>>,
     #[cfg(feature = "faer")]
-    frequency_response: FrequencyResponseVec<Mat<if64>>,
+    frequency_response: FrequencyResponseVec<Mat<T>>,
     pub(crate) b: Option<ModalMatrix>,
     // modal displacements matrix
     pub(crate) c: Option<ModalMatrix>,
 }
 
-impl From<&Cli> for TransferFunctionData {
+impl<T> From<&Cli> for TransferFunctionData<T>
+where
+    T: Default,
+    Mat<T>: Cartesian2Polar,
+{
     fn from(args: &Cli) -> Self {
         let fem = {
             let fem_repo = env::var("FEM_REPO").unwrap();
@@ -315,7 +340,7 @@ impl From<&Cli> for TransferFunctionData {
     }
 }
 
-impl TransferFunctionData {
+impl TransferFunctionData<if64> {
     /// Writes the date to either a pickle or matlab file
     ///
     /// The file extension, "pkl" or "mat", sets the file type
@@ -342,7 +367,6 @@ impl TransferFunctionData {
         );
         Ok(())
     }
-
     pub fn dump_to_mat(self, path: impl AsRef<Path>) -> Result<()> {
         use matio_rs::{Mat, MatFile, MayBeFrom};
         let mut fields = vec![
@@ -354,11 +378,18 @@ impl TransferFunctionData {
         ];
         let mut data = vec![];
         for r in self.frequency_response.iter() {
-            let data_fields = vec![
-                Mat::maybe_from("frequency", r.frequency)?,
-                Mat::maybe_from("magnitude", &r.magnitude)?,
-                Mat::maybe_from("phase", &r.phase)?,
-            ];
+            let data_fields = if let Some(phase) = &r.phase {
+                vec![
+                    Mat::maybe_from("frequency", r.frequency)?,
+                    Mat::maybe_from("magnitude", &r.magnitude)?,
+                    Mat::maybe_from("phase", phase)?,
+                ]
+            } else {
+                vec![
+                    Mat::maybe_from("frequency", r.frequency)?,
+                    Mat::maybe_from("magnitude", &r.magnitude)?,
+                ]
+            };
             data.push(Mat::maybe_from("data", data_fields)?);
         }
         let data_iter = Box::new(data.into_iter()) as Box<dyn Iterator<Item = Mat>>;
@@ -378,6 +409,110 @@ impl TransferFunctionData {
     }
     #[cfg(feature = "faer")]
     pub fn add_response(self, frequency_response: FrequencyResponseVec<Mat<if64>>) -> Self {
+        Self {
+            frequency_response,
+            ..self
+        }
+    }
+
+    /// Adds additional data from the structural model
+    pub fn add_structural(
+        self,
+        structural: &Structural,
+        b: bool,
+        c: bool,
+    ) -> std::result::Result<Self, StructuralError> {
+        let sc = 0.5 * f64::consts::FRAC_1_PI;
+        Ok(Self {
+            fem_eigen_frequency_range: (structural.w[0] * sc, *structural.w.last().unwrap() * sc),
+            b: b.then(|| {
+                Ok::<_, StructuralError>(ModalMatrix::new(
+                    structural.force_to_mode(),
+                    structural.inputs_nodes()?,
+                ))
+            })
+            .transpose()?,
+            c: c.then(|| {
+                Ok::<_, StructuralError>(ModalMatrix::new(
+                    structural.mode_to_displacement(),
+                    structural.outputs_nodes()?,
+                ))
+            })
+            .transpose()?,
+            ..self
+        })
+    }
+}
+
+impl TransferFunctionData<f64> {
+    /// Writes the date to either a pickle or matlab file
+    ///
+    /// The file extension, "pkl" or "mat", sets the file type
+    pub fn dump(self, path: impl AsRef<Path>) -> Result<()> {
+        let now = Instant::now();
+        match path.as_ref().extension() {
+            Some(ext) if ext == "pkl" => {
+                let file = File::create(&path)?;
+                let mut buffer = BufWriter::new(file);
+                serde_pickle::to_writer(&mut buffer, &self, Default::default())?;
+            }
+            Some(ext) if ext == "mat" => self.dump_to_mat(&path)?,
+            Some(ext) => {
+                return Err(TransferFunctionDataError::DataFileExtension(
+                    ext.to_string_lossy().into_owned(),
+                ));
+            }
+            None => return Err(TransferFunctionDataError::MissingFileExtension),
+        };
+        println!(
+            "Frequency response written to {} in {}ms",
+            path.as_ref().display(),
+            now.elapsed().as_millis()
+        );
+        Ok(())
+    }
+    pub fn dump_to_mat(self, path: impl AsRef<Path>) -> Result<()> {
+        use matio_rs::{Mat, MatFile, MayBeFrom};
+        let mut fields = vec![
+            Mat::maybe_from("fem", self.fem)?,
+            Mat::maybe_from("inputs", self.inputs)?,
+            Mat::maybe_from("outputs", self.outputs)?,
+            Mat::maybe_from("modal_damping_coefficient", self.modal_damping_coefficient)?,
+            Mat::maybe_from("fem_eigen_frequency_range", self.fem_eigen_frequency_range)?,
+        ];
+        let mut data = vec![];
+        for r in self.frequency_response.iter() {
+            let data_fields = if let Some(phase) = &r.phase {
+                vec![
+                    Mat::maybe_from("frequency", r.frequency)?,
+                    Mat::maybe_from("magnitude", &r.magnitude)?,
+                    Mat::maybe_from("phase", phase)?,
+                ]
+            } else {
+                vec![
+                    Mat::maybe_from("frequency", r.frequency)?,
+                    Mat::maybe_from("magnitude", &r.magnitude)?,
+                ]
+            };
+            data.push(Mat::maybe_from("data", data_fields)?);
+        }
+        let data_iter = Box::new(data.into_iter()) as Box<dyn Iterator<Item = Mat>>;
+        fields.push(Mat::maybe_from("frequency_response", vec![data_iter])?);
+        let mstruct = Mat::maybe_from("transfer_functions", fields)?;
+        MatFile::save(path)?.write(mstruct);
+        Ok(())
+    }
+
+    /// Adds the [frequency response](FrequencyResponseVec) to the data
+    #[cfg(feature = "nalgebra")]
+    pub fn add_response(self, frequency_response: FrequencyResponseVec<DMatrix<f64>>) -> Self {
+        Self {
+            frequency_response,
+            ..self
+        }
+    }
+    #[cfg(feature = "faer")]
+    pub fn add_response(self, frequency_response: FrequencyResponseVec<Mat<f64>>) -> Self {
         Self {
             frequency_response,
             ..self

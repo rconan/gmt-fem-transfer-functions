@@ -2,9 +2,7 @@ use std::time::Instant;
 
 use clap::Parser;
 use gmt_fem_frequency_response::{
-    Cli,
-    data::{Extremum, TransferFunctionData},
-    structural::{Structural, StructuralFrequencyResponse, StructuralFrequencyResponseSvd},
+    Cli, data::{Extremum, TransferFunctionData}, if64, structural::{Structural, StructuralFrequencyResponse, StructuralFrequencyResponseSvd}
 };
 
 fn main() -> anyhow::Result<()> {
@@ -14,7 +12,7 @@ fn main() -> anyhow::Result<()> {
     println!("{model}");
 
     let now = Instant::now();
-    let frequency_response = if args.svd {
+    if args.svd {
         let (u, v) = match args
             .uv
             .take()
@@ -29,27 +27,37 @@ fn main() -> anyhow::Result<()> {
             None => (false, false),
         };
         println!("computing frequency response SVD");
-        model.frequency_response_svd(&args.frequencies, u, v)
+        let frequency_response = model.frequency_response_svd(&args.frequencies, u, v);
+        println!(
+            "frequency response computed in {:.3}s",
+            now.elapsed().as_secs_f64()
+        );
+        println!("{frequency_response}");
+
+        let mut ex = frequency_response.extrema(None);
+        ex.sort_by(|Extremum { y: a, .. }, Extremum { y: b, .. }| b.partial_cmp(a).unwrap());
+        println!("Sorted frequency response extrema:");
+        ex.iter()
+            .take(5)
+            .for_each(|Extremum { i, x, y }| println!(" {:5}: {:8.2} {:.3e}", i, x, y));
+
+        TransferFunctionData::<f64>::from(&args)
+            .add_structural(&model, args.b, args.c)?
+            .add_response(frequency_response)
+            .dump(args.filename)?;
     } else {
-        model.frequency_response(&args.frequencies)
+        let frequency_response = model.frequency_response(&args.frequencies);
+        println!(
+            "frequency response computed in {:.3}s",
+            now.elapsed().as_secs_f64()
+        );
+        println!("{frequency_response}");
+
+        TransferFunctionData::<if64>::from(&args)
+            .add_structural(&model, args.b, args.c)?
+            .add_response(frequency_response)
+            .dump(args.filename)?;
     };
-    println!(
-        "frequency response computed in {:.3}s",
-        now.elapsed().as_secs_f64()
-    );
-    println!("{frequency_response}");
-
-    let mut ex = frequency_response.extrema(None);
-    ex.sort_by(|Extremum { y: a, .. }, Extremum { y: b, .. }| b.partial_cmp(a).unwrap());
-    println!("Sorted frequency response extrema:");
-    ex.iter()
-        .take(5)
-        .for_each(|Extremum { i, x, y }| println!(" {:5}: {:8.2} {:.3e}", i, x, y));
-
-    TransferFunctionData::from(&args)
-        .add_structural(&model, args.b, args.c)?
-        .add_response(frequency_response)
-        .dump(args.filename)?;
 
     Ok(())
 }

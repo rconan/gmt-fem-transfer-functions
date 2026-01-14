@@ -25,6 +25,9 @@ pub trait JOmega {
 }
 
 pub trait JOmegaSvd: JOmega {
+    /// SVD matrices type
+    type Svd;
+
     /// Returns the frequency response singular values
     ///
     /// The argument is the imaginary frequency in radians
@@ -33,7 +36,7 @@ pub trait JOmegaSvd: JOmega {
         jw: if64,
         u: bool,
         v: bool,
-    ) -> (Self::Output, Option<Self::Output>, Option<Self::Output>);
+    ) -> (Self::Svd, Option<Self::Svd>, Option<Self::Svd>);
 }
 
 /// Frequency response interface definition
@@ -124,10 +127,10 @@ pub trait FrequencyResponseSvd: JOmegaSvd {
         nu: T,
         u: bool,
         v: bool,
-    ) -> FrequencyResponseVec<Self::Output>
+    ) -> FrequencyResponseVec<Self::Svd>
     where
-        <Self as JOmega>::Output: Cartesian2Polar + Send,
-        <<Self as JOmega>::Output as Cartesian2Polar>::Output: Get + Send,
+        <Self as JOmegaSvd>::Svd: Cartesian2Polar + Send,
+        <<Self as JOmegaSvd>::Svd as Cartesian2Polar>::Output: Get + Send,
         Self: Sync,
     {
         let frequencies: Frequencies = nu.into();
