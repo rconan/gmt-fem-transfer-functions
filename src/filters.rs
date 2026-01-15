@@ -5,7 +5,6 @@ use std::f64::consts::PI;
 
 const DPI: f64 = 2f64 * PI;
 
-
 /// First order low-pass
 ///
 /// *GMT-DOC-XXXX: ASM segment modal tranfer function*, Eq.(1)
@@ -75,5 +74,43 @@ impl JOmega for PICompensator {
     type Output = if64;
     fn j_omega(&self, jw: if64) -> Self::Output {
         self.kp + self.ki / jw
+    }
+}
+#[cfg(test)]
+mod tests {
+    // use std::fs::File;
+
+    use crate::frequency_response::{Frequencies, FrequencyResponse};
+
+    use super::*;
+
+    #[test]
+    fn folp_tf() {
+        let folp = FirstOrderLowPass::new();
+
+        let tf = folp.frequency_response(Frequencies::logspace(1., 8e3, 1000));
+
+        // let mut file = File::create("folp_tf.pkl").unwrap();
+        // serde_pickle::to_writer(&mut file, &(nu, tf), Default::default()).unwrap();
+    }
+
+    #[test]
+    fn bessel_tf() {
+        let bessel = BesselFilter::new();
+
+        let tf = bessel.frequency_response(Frequencies::logspace(1., 8e3, 1000));
+
+        // let mut file = File::create("bessel_tf.pkl").unwrap();
+        // serde_pickle::to_writer(&mut file, &(nu, tf), Default::default()).unwrap();
+    }
+
+    #[test]
+    fn pic_tf() {
+        let pic = PICompensator::new();
+
+        let tf = pic.frequency_response(Frequencies::logspace(1., 8e3, 1000));
+
+        // let mut file = File::create("pic_tf.pkl").unwrap();
+        // serde_pickle::to_writer(&mut file, &(nu, tf), Default::default()).unwrap();
     }
 }

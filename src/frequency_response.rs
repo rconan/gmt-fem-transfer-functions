@@ -186,39 +186,3 @@ pub trait FrequencyResponseSvd: JOmegaSvd {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    // use std::fs::File;
-
-    use super::*;
-
-    #[test]
-    fn folp_tf() {
-        let folp = FirstOrderLowPass::new();
-
-        let tf = folp.frequency_response(Frequencies::logspace(1., 8e3, 1000));
-
-        // let mut file = File::create("folp_tf.pkl").unwrap();
-        // serde_pickle::to_writer(&mut file, &(nu, tf), Default::default()).unwrap();
-    }
-
-    #[test]
-    fn bessel_tf() {
-        let bessel = BesselFilter::new();
-
-        let tf = bessel.frequency_response(Frequencies::logspace(1., 8e3, 1000));
-
-        // let mut file = File::create("bessel_tf.pkl").unwrap();
-        // serde_pickle::to_writer(&mut file, &(nu, tf), Default::default()).unwrap();
-    }
-
-    #[test]
-    fn pic_tf() {
-        let pic = PICompensator::new();
-
-        let tf = pic.frequency_response(Frequencies::logspace(1., 8e3, 1000));
-
-        // let mut file = File::create("pic_tf.pkl").unwrap();
-        // serde_pickle::to_writer(&mut file, &(nu, tf), Default::default()).unwrap();
-    }
-}
