@@ -1,40 +1,42 @@
-//! Frequency response functionalities
+use std::f64::consts::PI;
 
 use indicatif::{ParallelProgressIterator, ProgressStyle};
 use rayon::prelude::*;
-use std::{f64::consts::PI, ops::Mul};
 
 use crate::{
     data::{Cartesian2Polar, FrequencyResponseData, FrequencyResponseVec, Get},
     if64,
 };
 
-mod frequencies;
-pub use frequencies::Frequencies;
-mod svd;
-pub use svd::{FrequencyResponseSvd, JOmegaSvd};
+pub use super::{Frequencies, JOmega};
 
 const DPI: f64 = 2f64 * PI;
 
-pub trait JOmega {
-    /// Transfer function type
-    type Output;
+pub trait JOmegaSvd: JOmega {
+    /// SVD matrices type
+    type Svd;
 
-    /// Returns the frequency response
+    /// Returns the frequency response singular values
     ///
     /// The argument is the imaginary frequency in radians
-    fn j_omega(&self, jw: if64) -> Self::Output;
+    fn j_omega_svd(
+        &self,
+        jw: if64,
+        u: bool,
+        v: bool,
+    ) -> (Self::Svd, Option<Self::Svd>, Option<Self::Svd>);
 }
 
-/// Frequency response interface definition
-pub trait FrequencyResponse: JOmega {
-    /// Returns the frequencies and the frequency response
-    ///
-    /// The argument is frequencies in Hz
-    fn frequency_response<T: Into<Frequencies>>(&self, nu: T) -> FrequencyResponseVec<Self::Output>
+pub trait FrequencyResponseSvd: JOmegaSvd {
+    fn frequency_response_svd<T: Into<Frequencies>>(
+        &self,
+        nu: T,
+        u: bool,
+        v: bool,
+    ) -> FrequencyResponseVec<Self::Svd>
     where
-        <Self as JOmega>::Output: Cartesian2Polar + Send,
-        <<Self as JOmega>::Output as Cartesian2Polar>::Output: Get + Send,
+        <Self as JOmegaSvd>::Svd: Cartesian2Polar + Send,
+        <<Self as JOmegaSvd>::Svd as Cartesian2Polar>::Output: Get + Send,
         Self: Sync,
     {
         let frequencies: Frequencies = nu.into();
@@ -44,7 +46,10 @@ pub trait FrequencyResponse: JOmega {
         let data = match frequencies {
             Frequencies::Single { value: nu } => {
                 let jw = if64::new(0f64, DPI * nu);
-                vec![FrequencyResponseData::new(nu, self.j_omega(jw))]
+                vec![FrequencyResponseData::new_svd(
+                    nu,
+                    self.j_omega_svd(jw, u, v),
+                )]
             }
             Frequencies::LogSpace { lower, upper, n } => {
                 assert!(upper > lower);
@@ -56,7 +61,7 @@ pub trait FrequencyResponse: JOmega {
                         let log_nu = lower.log10() + log_step * i as f64;
                         let nu = 10f64.powf(log_nu);
                         let jw = if64::new(0f64, DPI * nu);
-                        FrequencyResponseData::new(nu, self.j_omega(jw))
+                        FrequencyResponseData::new_svd(nu, self.j_omega_svd(jw, u, v))
                     })
                     .collect()
             }
@@ -69,7 +74,7 @@ pub trait FrequencyResponse: JOmega {
                     .map(|i| {
                         let nu = lower + step * i as f64;
                         let jw = if64::new(0f64, DPI * nu);
-                        FrequencyResponseData::new(nu, self.j_omega(jw))
+                        FrequencyResponseData::new_svd(nu, self.j_omega_svd(jw, u, v))
                     })
                     .collect()
             }
@@ -78,31 +83,13 @@ pub trait FrequencyResponse: JOmega {
                 .progress_with_style(style)
                 .map(|nu| {
                     let jw = if64::new(0f64, DPI * nu);
-                    FrequencyResponseData::new(nu, self.j_omega(jw))
+                    FrequencyResponseData::new_svd(nu, self.j_omega_svd(jw, u, v))
                 })
                 .collect(),
             _ => panic!("frequencies not set, aborting"),
         };
         FrequencyResponseVec::new(data)
     }
-
-    /// Returns the first derivation of the frequency response
-    fn j_omega_first(&self, jw: if64) -> <<Self as JOmega>::Output as Mul<if64>>::Output
-    where
-        <Self as JOmega>::Output: Mul<if64>,
-    {
-        self.j_omega(jw) * jw
-    }
-    /// Returns the second derivation of the frequency response
-    fn j_omega_second(
-        &self,
-        jw: if64,
-    ) -> <<<Self as JOmega>::Output as Mul<if64>>::Output as Mul<if64>>::Output
-    where
-        <Self as JOmega>::Output: Mul<if64>,
-        <<Self as JOmega>::Output as Mul<if64>>::Output: Mul<if64>,
-    {
-        self.j_omega_first(jw) * jw
-    }
 }
-impl<T: JOmega> FrequencyResponse for T {}
+
+impl<T: JOmegaSvd> FrequencyResponseSvd for T {}
