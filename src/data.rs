@@ -5,9 +5,15 @@ use faer::Mat;
 #[cfg(feature = "nalgebra")]
 use nalgebra::{ComplexField, DMatrix};
 use serde::Serialize;
-use std::io::BufWriter;
-use std::time::Instant;
-use std::{env, f64, fmt::Display, fs::File, io, ops::Deref, path::Path};
+use std::{
+    env, f64,
+    fmt::{Debug, Display},
+    fs::File,
+    io::{self, BufWriter},
+    ops::Deref,
+    path::Path,
+    time::Instant,
+};
 
 use crate::if64;
 use crate::structural::StructuralError;
@@ -110,8 +116,8 @@ impl Cartesian2Polar for DMatrix<if64> {
         self.map(|x| x.modulus())
     }
 
-    fn phase(&self) -> Self::Output {
-        self.map(|x| x.argument())
+    fn phase(&self) -> Option<Self::Output> {
+        Some(self.map(|x| x.argument()))
     }
 }
 
@@ -130,9 +136,16 @@ impl Cartesian2Polar for if64 {
 pub trait Get {
     fn get(&self, row: usize, col: usize) -> &f64;
 }
+#[cfg(feature = "faer")]
 impl Get for Mat<f64> {
     fn get(&self, row: usize, col: usize) -> &f64 {
         self.get(row, col)
+    }
+}
+#[cfg(feature = "nalgebra")]
+impl Get for DMatrix<f64> {
+    fn get(&self, row: usize, col: usize) -> &f64 {
+        &self[(row, col)]
     }
 }
 
@@ -283,16 +296,18 @@ where
     }
 }
 
+#[cfg(feature = "faer")]
+type Matrix<T> = Mat<T>;
+#[cfg(feature = "nalgebra")]
+type Matrix<T> = DMatrix<T>;
+
 #[derive(Debug, Serialize)]
 pub struct ModalMatrix {
-    #[cfg(feature = "nalgebra")]
-    pub(crate) mat: DMatrix<f64>,
-    #[cfg(feature = "faer")]
-    pub(crate) mat: Mat<f64>,
+    pub(crate) mat: Matrix<f64>,
     pub(crate) nodes: Vec<f64>,
 }
 impl ModalMatrix {
-    pub fn new(mat: Mat<f64>, nodes: Vec<f64>) -> Self {
+    pub fn new(mat: Matrix<f64>, nodes: Vec<f64>) -> Self {
         Self { mat, nodes }
     }
 }
@@ -301,17 +316,15 @@ impl ModalMatrix {
 #[derive(Debug, Default, Serialize)]
 pub struct TransferFunctionData<T>
 where
-    Mat<T>: Cartesian2Polar,
+    T: Clone + PartialEq + Debug + 'static,
+    Matrix<T>: Cartesian2Polar,
 {
     fem: String,
     inputs: Vec<String>,
     outputs: Vec<String>,
     modal_damping_coefficient: f64,
     fem_eigen_frequency_range: (f64, f64),
-    #[cfg(feature = "nalgebra")]
-    frequency_response: FrequencyResponseVec<DMatrix<if64>>,
-    #[cfg(feature = "faer")]
-    frequency_response: FrequencyResponseVec<Mat<T>>,
+    frequency_response: FrequencyResponseVec<Matrix<T>>,
     pub(crate) b: Option<ModalMatrix>,
     // modal displacements matrix
     pub(crate) c: Option<ModalMatrix>,
@@ -319,8 +332,8 @@ where
 
 impl<T> From<&Cli> for TransferFunctionData<T>
 where
-    T: Default,
-    Mat<T>: Cartesian2Polar,
+    T: Clone + PartialEq + Default + Debug,
+    Matrix<T>: Cartesian2Polar,
 {
     fn from(args: &Cli) -> Self {
         let fem = {
@@ -444,6 +457,7 @@ impl TransferFunctionData<if64> {
     }
 }
 
+#[cfg(feature = "faer")]
 impl TransferFunctionData<f64> {
     /// Writes the date to either a pickle or matlab file
     ///

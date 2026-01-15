@@ -1,5 +1,7 @@
 #[cfg(feature = "faer")]
 use faer::{Mat, MatRef};
+#[cfg(feature = "nalgebra")]
+use nalgebra::DMatrix;
 use gmt_dos_clients_fem::{Model, Switch};
 use gmt_fem::FEM;
 

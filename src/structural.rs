@@ -13,9 +13,9 @@ use nalgebra::{DMatrix, DMatrixView};
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "faer")]
-use crate::frequency_response::JOmegaSvd;
+use crate::frequency_response::{FrequencyResponseSvd, JOmegaSvd};
 use crate::{
-    frequency_response::{Frequencies, FrequencyResponse, FrequencyResponseSvd, JOmega},
+    frequency_response::{Frequencies, FrequencyResponse, JOmega},
     if64,
 };
 
@@ -234,14 +234,24 @@ impl Structural {
             .collect())
     }
     /// Returns the force to mode matrix
+    #[cfg(feature = "faer")]
     pub fn force_to_mode(&self) -> Mat<f64> {
         let mut iter = self.b.col_iter().flat_map(|c| c.iter().map(|x| x.re));
         Mat::<f64>::from_fn(self.b.nrows(), self.b.ncols(), |_, _| iter.next().unwrap())
     }
+    #[cfg(feature = "nalgebra")]
+    pub fn force_to_mode(&self) -> DMatrix<f64> {
+        self.b.clone()
+    }
     /// Returns the mode to displacement matrix
+    #[cfg(feature = "faer")]
     pub fn mode_to_displacement(&self) -> Mat<f64> {
         let mut iter = self.c.col_iter().flat_map(|c| c.iter().map(|x| x.re));
         Mat::<f64>::from_fn(self.c.nrows(), self.c.ncols(), |_, _| iter.next().unwrap())
+    }
+    #[cfg(feature = "nalgebra")]
+    pub fn mode_to_displacement(&self) -> DMatrix<f64> {
+        self.c.clone()
     }
 }
 
@@ -383,6 +393,7 @@ pub trait StructuralFrequencyResponse: FrequencyResponse {
         <<Self as JOmega>::Output as crate::data::Cartesian2Polar>::Output: Send,
         Self: Sync;
 }
+#[cfg(feature = "faer")]
 pub trait StructuralFrequencyResponseSvd: FrequencyResponseSvd {
     fn frequency_response_svd<T: Into<crate::frequency_response::Frequencies>>(
         &self,
@@ -415,6 +426,7 @@ impl StructuralFrequencyResponse for Structural {
         <Self as FrequencyResponse>::frequency_response(&self, frequencies)
     }
 }
+#[cfg(feature = "faer")]
 impl StructuralFrequencyResponseSvd for Structural {
     fn frequency_response_svd<T: Into<crate::frequency_response::Frequencies>>(
         &self,
