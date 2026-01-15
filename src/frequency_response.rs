@@ -1,7 +1,5 @@
 //! Frequency response functionalities
 
-use indicatif::{ParallelProgressIterator, ProgressStyle};
-use rayon::prelude::*;
 use std::{f64::consts::PI, ops::Mul};
 
 use crate::{
@@ -38,51 +36,7 @@ pub trait FrequencyResponse: JOmega {
         Self: Sync,
     {
         let frequencies: Frequencies = nu.into();
-        let style = ProgressStyle::with_template("|{bar} {pos}|")
-            .unwrap()
-            .progress_chars("-.-");
-        let data = match frequencies {
-            Frequencies::Single { value: nu } => {
-                let jw = if64::new(0f64, DPI * nu);
-                vec![FrequencyResponseData::new(nu, self.j_omega(jw))]
-            }
-            Frequencies::LogSpace { lower, upper, n } => {
-                assert!(upper > lower);
-                let log_step = (upper.log10() - lower.log10()) / (n - 1) as f64;
-                (0..n)
-                    .into_par_iter()
-                    .progress_with_style(style)
-                    .map(|i| {
-                        let log_nu = lower.log10() + log_step * i as f64;
-                        let nu = 10f64.powf(log_nu);
-                        let jw = if64::new(0f64, DPI * nu);
-                        FrequencyResponseData::new(nu, self.j_omega(jw))
-                    })
-                    .collect()
-            }
-            Frequencies::LinSpace { lower, upper, n } => {
-                assert!(upper > lower);
-                let step = (upper - lower) / (n - 1) as f64;
-                (0..n)
-                    .into_par_iter()
-                    .progress_with_style(style)
-                    .map(|i| {
-                        let nu = lower + step * i as f64;
-                        let jw = if64::new(0f64, DPI * nu);
-                        FrequencyResponseData::new(nu, self.j_omega(jw))
-                    })
-                    .collect()
-            }
-            Frequencies::Set { values: nu } => nu
-                .into_par_iter()
-                .progress_with_style(style)
-                .map(|nu| {
-                    let jw = if64::new(0f64, DPI * nu);
-                    FrequencyResponseData::new(nu, self.j_omega(jw))
-                })
-                .collect(),
-            _ => panic!("frequencies not set, aborting"),
-        };
+        let data = frequencies.data(|nu, jw| FrequencyResponseData::new(nu, self.j_omega(jw)));
         FrequencyResponseVec::new(data)
     }
 
